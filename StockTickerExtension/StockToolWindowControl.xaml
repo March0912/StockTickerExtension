@@ -1,0 +1,51 @@
+﻿<UserControl x:Class="StockTickerExtension.StockToolWindowControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:scottplt="clr-namespace:ScottPlot;assembly=ScottPlot.WPF"
+             Height="420" Width="1100">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 顶部控制面板 -->
+        <StackPanel Orientation="Horizontal" Background="LightGray" Margin="6" Grid.Row="0">
+            <TextBlock Text="股票代码:" VerticalAlignment="Center" Margin="6,0"/>
+            <TextBox x:Name="CodeTextBox" Width="100" Text="301307" VerticalAlignment="Center" />
+            <Button x:Name="StartBtn" Content="开始监控" Margin="6,0" Width="80"/>
+            <Button x:Name="StopBtn" Content="停止监控" Margin="6,0" Width="80"/>
+            <Button x:Name="TopmostBtn" Content="窗口置顶" Margin="6,0" Width="80"/>
+            <TextBlock Text=" " Width="20"/>
+            <TextBlock Text="涨跌:" VerticalAlignment="Center" />
+            <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center"/>
+            <TextBlock Text=" " Width="20"/>
+            <TextBlock x:Name="StatusText" Text="请输入股票代码" VerticalAlignment="Center" Foreground="Blue"/>
+        </StackPanel>
+
+        <!-- 第二行：持仓信息 -->
+        <StackPanel Orientation="Horizontal" Background="LightGray" Margin="6" Grid.Row="1">
+            <TextBlock Text="持股数量:" VerticalAlignment="Center" Margin="6,0"/>
+            <TextBox x:Name="SharesBox" Width="80" Text="400" />
+            <TextBlock Text="成本价:" VerticalAlignment="Center" Margin="6,0"/>
+            <TextBox x:Name="CostBox" Width="80" Text="40.915" />
+            <TextBlock x:Name="PositionProfitText" Text="持仓盈亏: --" Margin="12,0"/>
+            <TextBlock x:Name="TodayProfitText" Text="今日盈亏: --" Margin="12,0"/>
+            <Button x:Name="UpdateProfitBtn" Content="更新盈亏" Margin="6,0" Width="80"/>
+        </StackPanel>
+
+        <!-- 第三行：图表区域 -->
+        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="6">
+            <StackPanel Orientation="Vertical">
+                <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" Margin="0,0,0,6"/>
+                <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="120"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 底部提示 -->
+        <TextBlock Grid.Row="3" Text="提示：支持 000001/300750/601318 等代码 | 红色: 买入为主，绿色: 卖出为主"
+                   FontSize="11" Foreground="Gray" Margin="6"/>
+    </Grid>
+</UserControl>
