@@ -1,7 +1,9 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Microsoft.VisualStudio.Threading;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.IO.Ports;
 using System.Linq;
 using System.Net.Http;
@@ -10,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.TrackBar;
 
@@ -22,6 +25,8 @@ namespace StockTickerExtension
         public double CurrentPrice { get; set; }
         public double[] Prices { get; set; }
         public double[] AvgPrices { get; set; }
+        public double[] HighPrices { get; set; }
+        public double[] LowPrices { get; set; }
         public double[] Volumes { get; set; }
         public double[] BuyVolumes { get; set; }
         public double[] SellVolumes { get; set; }
@@ -50,6 +55,8 @@ namespace StockTickerExtension
         private int _fetchIntervalSeconds = 5;
         private bool _monitoring = false;
         private DateTime _currentDate;
+        private CancellationTokenSource _kdjCts;
+
         public StockToolWindowControl()
         {
             InitializeComponent();
@@ -142,12 +149,14 @@ namespace StockTickerExtension
         private void InitPeriodComboBox()
         {
             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Intraday" });
-//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Daily K" });
-//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Weekly K" });
-//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Monthly K" });
-//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Quarterly K" });
-//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Yearly K" });
-
+            if (true)
+            {
+                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Daily K" });
+                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Weekly K" });
+                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Monthly K" });
+                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Quarterly K" });
+                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Yearly K" });
+            }
             PeriodComboBox.SelectionChanged += PeriodComboBox_SelectionChanged;
         }
 
@@ -214,16 +223,14 @@ namespace StockTickerExtension
             var code = CodeTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(code))
             {
-                StatusText.Text = "Error: Please enter a stock code";
-                StatusText.Foreground = Brushes.Red;
+                UpdateStatus("Error: Please enter a stock code", Brushes.Red);
                 return false;
             }
 
             // ------------------ 检查交易时间 ------------------
             if (period == "Intraday" && !IsTradingTime(DateTime.Now))
             {
-                StatusText.Text = "Currently outside trading hours, monitoring cannot start";
-                StatusText.Foreground = Brushes.Red;
+                UpdateStatus("Currently outside trading hours, monitoring cannot start", Brushes.Red);
                 return false;
             }
             return true;
@@ -248,8 +255,16 @@ namespace StockTickerExtension
             _cts = new CancellationTokenSource();
             _ =Task.Run(() => FetchLoopAsync(code, period, _cts.Token));
 
+            // ✅ 如果是分时图，则同时启动金叉监控线程
+            if (period == "Intraday")
+            {
+                _kdjCts = new CancellationTokenSource();
+                _ = Task.Run(() => MonitorKDJAsync(code, _kdjCts.Token));
+            }
+
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
-            StatusText.Text = "";
+            UpdateStatus("", Brushes.Blue);
+
             _monitoring = true;
             StartBtn.IsEnabled = false;
             StopBtn.IsEnabled = true;
@@ -268,8 +283,11 @@ namespace StockTickerExtension
 
             _cts?.Cancel();
             _cts = null;
-            StatusText.Text = "Monitoring stopped";
-            StatusText.Foreground = Brushes.Blue;
+
+            _kdjCts?.Cancel();
+            _kdjCts = null;
+
+            UpdateStatus("Conitoring stopped", Brushes.Blue);
             if (_uiTimer.IsEnabled) _uiTimer.Stop();
         }
 
@@ -375,6 +393,8 @@ namespace StockTickerExtension
             var prices = new double[count];
             var avgPrices = new double[count];
             var vols = new double[count];
+            var highs = new double[count];
+            var lows = new double[count];
 
             for (int i = 0; i < count; i++)
             {
@@ -386,6 +406,8 @@ namespace StockTickerExtension
                 double vol = double.Parse(parts[5]);
 
                 prices[i] = close;
+                highs[i] = high;
+                lows[i] = low;
 //                 avgPrices[i] = (open + close + high + low) / 4.0;
                 vols[i] = vol;
             }
@@ -393,11 +415,28 @@ namespace StockTickerExtension
             double lastPrice = prices.Last();
             double changePercent = (count >= 2) ? (lastPrice - prices[count - 2]) / prices[count - 2] * 100 : 0;
 
+            // 假设你有收盘价、最高价、最低价列表
+            bool goldenCross = HasKDJGoldenCross(prices, highs, lows);
+            bool deadCross = HasKDJDeadCross(prices, highs, lows);
+
+            if (goldenCross)
+            {
+                var t = DateTime.Now.ToString("hh:mm:ss");
+                UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Green);
+            }
+            else if (deadCross)
+            {
+                var t = DateTime.Now.ToString("hh:mm:ss");
+                UpdateStatus($"*************** {t} KDJ 出现死叉信号！***************", Brushes.Red);
+            }
+
             return new StockSnapshot
             {
                 Code = codeWithSuffix,
                 Name = name,
                 Prices = prices,
+                HighPrices = highs,
+                LowPrices = lows,
                 AvgPrices = avgPrices,
                 Volumes = vols,
                 BuyVolumes = vols.Select(v => v * 0.5).ToArray(),
@@ -542,8 +581,7 @@ namespace StockTickerExtension
             {
                 if (string.IsNullOrEmpty(StatusText.Text))
                 {
-                    StatusText.Text = $"Monitoring {snap.Code} {snap.Name}";
-                    StatusText.Foreground = Brushes.Blue;
+                    UpdateStatus($"Monitoring {snap.Code} {snap.Name}", Brushes.Blue);
                 }
                 UpdatePriceChart(snap);
                 ChangePercentText.Text = snap.ChangePercent.HasValue ? $"{snap.ChangePercent.Value:F2}%" : "--%";
@@ -730,6 +768,14 @@ namespace StockTickerExtension
             TodayProfitText.Text = $"Today's P/L: {todayProfit:F2}";
         }
 
+        private void UpdateStatus(string text, Brush color = null)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                StatusText.Text = text;
+                StatusText.Foreground = color ?? Brushes.Gray;
+            }));
+        }
         private DateTime GetCurrentDate()
         {
             string s = DatePickerControl.Text;
@@ -744,5 +790,129 @@ namespace StockTickerExtension
         {
             return (ChartType)PeriodComboBox.SelectedIndex;
         }
+
+        private async Task MonitorKDJAsync(string code, CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    // 每分钟检测一次
+                    await Task.Delay(TimeSpan.FromMinutes(5), token);
+
+                    var kSnap = await FetchKSnapshotAsync(NormalizeCode(code), "Daily K");
+//                     if (kSnap == null || kSnap.Prices == null || kSnap.Prices.Length < 10)
+//                         continue;
+
+//                     bool isGolden = HasKDJGoldenCross(kSnap.Prices, kSnap.HighPrices, kSnap.LowPrices);
+//                     bool isDeath = HasKDJDeadCross(kSnap.Prices, kSnap.HighPrices, kSnap.LowPrices);
+//                     var t = DateTime.Now.ToString("hh:mm:ss");
+// 
+//                     if (isGolden)
+//                         UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Green);
+//                     else if (isDeath)
+//                         UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Red);
+                }
+                catch (TaskCanceledException)
+                {
+                    // 正常结束
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatus("KDJ check error: " + ex.Message, Brushes.Red);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 检测KDJ金叉出现（上一根K<D，本根K≥D）
+        /// </summary>
+        private bool HasKDJGoldenCross(double[] closes, double[] highs, double[] lows)
+        {
+            if (closes == null || highs == null || lows == null || closes.Length < 10)
+                return false;
+
+            List<double> KList = new List<double>();
+            List<double> DList = new List<double>();
+            double K = 50, D = 50;
+
+            for (int i = 0; i < closes.Length; i++)
+            {
+                if (i < 8)
+                {
+                    KList.Add(K);
+                    DList.Add(D);
+                    continue;
+                }
+
+                double H9 = highs.Skip(Math.Max(0, i - 8)).Take(9).Max();
+                double L9 = lows.Skip(Math.Max(0, i - 8)).Take(9).Min();
+                double RSV = (H9 == L9) ? 50 : (closes[i] - L9) / (H9 - L9) * 100;
+
+                K = 2.0 / 3.0 * K + 1.0 / 3.0 * RSV;
+                D = 2.0 / 3.0 * D + 1.0 / 3.0 * K;
+
+                KList.Add(K);
+                DList.Add(D);
+            }
+
+            if (KList.Count >= 2)
+            {
+                double prevK = KList[KList.Count - 2];
+                double prevD = DList[KList.Count - 2];
+                double currK = KList[KList.Count - 1];
+                double currD = DList[KList.Count - 1];
+
+                if (prevK < prevD && currK >= currD)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 检测KDJ死叉出现（上一根K>D，本根K≤D）
+        /// </summary>
+        private bool HasKDJDeadCross(double[] closes, double[] highs, double[] lows)
+        {
+            if (closes == null || highs == null || lows == null || closes.Length < 10)
+                return false;
+
+            List<double> KList = new List<double>();
+            List<double> DList = new List<double>();
+            double K = 50, D = 50;
+
+            for (int i = 0; i < closes.Length; i++)
+            {
+                if (i < 8)
+                {
+                    KList.Add(K);
+                    DList.Add(D);
+                    continue;
+                }
+
+                double H9 = highs.Skip(Math.Max(0, i - 8)).Take(9).Max();
+                double L9 = lows.Skip(Math.Max(0, i - 8)).Take(9).Min();
+                double RSV = (H9 == L9) ? 50 : (closes[i] - L9) / (H9 - L9) * 100;
+
+                K = 2.0 / 3.0 * K + 1.0 / 3.0 * RSV;
+                D = 2.0 / 3.0 * D + 1.0 / 3.0 * K;
+
+                KList.Add(K);
+                DList.Add(D);
+            }
+
+            if (KList.Count >= 2)
+            {
+                double prevK = KList[KList.Count - 2];
+                double prevD = DList[KList.Count - 2];
+                double currK = KList[KList.Count - 1];
+                double currD = DList[KList.Count - 1];
+
+                if (prevK > prevD && currK <= currD)
+                    return true;
+            }
+            return false;
+        }
+
     }
 }
