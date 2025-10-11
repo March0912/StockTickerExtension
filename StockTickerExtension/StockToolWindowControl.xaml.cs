@@ -1,17 +1,16 @@
 ﻿using Newtonsoft.Json.Linq;
-using ScottPlot;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO.Ports;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
-using System.Windows.Media;
-using System.Windows.Media;
 
 namespace StockTickerExtension
 {
@@ -38,6 +37,7 @@ namespace StockTickerExtension
         private readonly List<string> _tradingMinutes;
         private readonly int _totalMinutes;
         private int _fetchIntervalSeconds = 5;
+        private bool _monitoring = false;
 
         public StockToolWindowControl()
         {
@@ -51,7 +51,6 @@ namespace StockTickerExtension
 
         private void StartBtn_Click(object sender, System.Windows.RoutedEventArgs e) => StartMonitoring();
         private void StopBtn_Click(object sender, System.Windows.RoutedEventArgs e) => StopMonitoring();
-        private void UpdateProfitBtn_Click(object sender, System.Windows.RoutedEventArgs e) => UpdateProfitDisplay();
 
         private void CodeTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
         {
@@ -85,7 +84,8 @@ namespace StockTickerExtension
         {
             StartBtn.Click += StartBtn_Click;
             StopBtn.Click += StopBtn_Click;
-            UpdateProfitBtn.Click += UpdateProfitBtn_Click;
+            StopBtn.IsEnabled = false;
+
             CodeTextBox.PreviewTextInput += CodeTextBox_PreviewTextInput;
             DataObject.AddPastingHandler(CodeTextBox, CodeTextBox_Pasting);
             // 当 UserControl 卸载（窗口关闭）时停止监控
@@ -158,7 +158,7 @@ namespace StockTickerExtension
             var code = CodeTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(code))
             {
-                StatusText.Text = "错误：请输入股票代码";
+                StatusText.Text = "Error: Please enter a stock code";
                 StatusText.Foreground = Brushes.Red;
                 return;
             }
@@ -166,7 +166,7 @@ namespace StockTickerExtension
             // ------------------ 检查交易时间 ------------------
             if (!IsTradingTime(DateTime.Now))
             {
-                StatusText.Text = "当前不在交易时间，无法启动监控";
+                StatusText.Text = "Currently outside trading hours, monitoring cannot start";
                 StatusText.Foreground = Brushes.Red;
                 return;
             }
@@ -177,19 +177,33 @@ namespace StockTickerExtension
 
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
             StatusText.Text = "";
+            _monitoring = true;
+            StartBtn.IsEnabled = false;
+            StopBtn.IsEnabled = true;
         }
 
         private void StopMonitoring()
         {
+            if (!_monitoring)
+            {
+                return;
+            }
+
+            StopBtn.IsEnabled = false;
+            StartBtn.IsEnabled = true;
+
             _cts?.Cancel();
             _cts = null;
-            StatusText.Text = "监控已停止";
+            StatusText.Text = "Monitoring stopped";
             StatusText.Foreground = Brushes.Blue;
             if (_uiTimer.IsEnabled) _uiTimer.Stop();
         }
 
         private async Task FetchLoopAsync(string code, CancellationToken token)
         {
+            if (!_monitoring)
+                return;
+
             var codeWithSuffix = NormalizeCode(code);
 
             while (!token.IsCancellationRequested)
@@ -343,11 +357,14 @@ namespace StockTickerExtension
 
         private void UiTimer_Tick(object sender, EventArgs e)
         {
+            if (!_monitoring)
+                return;
+
             if (_queue.TryDequeue(out var snap))
             {
                 if (string.IsNullOrEmpty(StatusText.Text))
                 {
-                    StatusText.Text = $"正在监控 {snap.Code} {snap.Name}";
+                    StatusText.Text = $"Monitoring in progress {snap.Code} {snap.Name}";
                     StatusText.Foreground = Brushes.Blue;
                 }
                 UpdatePriceChart(snap.Prices, snap.AvgPrices, snap.BuyVolumes, snap.SellVolumes);
@@ -359,6 +376,9 @@ namespace StockTickerExtension
 
         private void UpdatePriceChart(double[] prices, double[] avgPrices, double[] buyVolumes, double[] sellVolumes)
         {
+            if (!_monitoring)
+                return;
+
             List<double> safePrices = new List<double>();
             List<double> safeAvgPrices = new List<double>();
 
@@ -411,8 +431,8 @@ namespace StockTickerExtension
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
             // 坐标轴名称
-            WpfPlotPrice.Plot.YLabel("价格(元)");
-            WpfPlotPrice.Plot.YAxis2.Label("成交量(手)");
+            WpfPlotPrice.Plot.YLabel("Price(RMB)");
+            WpfPlotPrice.Plot.YAxis2.Label("Volume (Lots)");
 
             // 设置右轴显示
             WpfPlotPrice.Plot.YAxis2.Ticks(true);
@@ -447,8 +467,8 @@ namespace StockTickerExtension
             double positionProfit = (currentPrice - cost) * shares;
             double todayProfit = currentPrice * change * shares / 100;
 
-            PositionProfitText.Text = $"持仓盈亏: {positionProfit:F2}";
-            TodayProfitText.Text = $"今日盈亏: {todayProfit:F2}";
+            PositionProfitText.Text = $"nrealized P/L: {positionProfit:F2}";
+            TodayProfitText.Text = $"Today's P/L: {todayProfit:F2}";
         }
     }
 }

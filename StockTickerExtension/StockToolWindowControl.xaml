@@ -26,29 +26,28 @@
 
             <!-- 顶部控制面板 -->
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="0" HorizontalAlignment="Left">
-                <TextBlock Text="股票代码:" VerticalAlignment="Center" Margin="6,0"/>
+                <TextBlock Text="Stock Code:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBox x:Name="CodeTextBox" Width="100" Text="301307" VerticalAlignment="Center" />
-                <Button x:Name="StartBtn" Content="开始监控" Margin="6,0" Width="80"/>
-                <Button x:Name="StopBtn" Content="停止监控" Margin="6,0" Width="80"/>
+                <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80"/>
+                <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80"/>
                 <TextBlock Text=" " Width="20"/>
-                <TextBlock Text="涨跌:" VerticalAlignment="Center" />
+                <TextBlock Text="Fluctuation:" VerticalAlignment="Center" />
                 <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center"/>
                 <TextBlock Text=" " Width="20"/>
-                <CheckBox x:Name="AutoStopCheckBox" Content="关闭时自动停止" IsChecked="False" Margin="6,0" VerticalAlignment="Center"/>
-                <TextBlock x:Name="StatusText" Text="请输入股票代码" VerticalAlignment="Center" Foreground="Blue"/>
+                <CheckBox x:Name="AutoStopCheckBox" Content="Stop when closed" IsChecked="False" Margin="6,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Text="Please input code" VerticalAlignment="Center" Foreground="Blue"/>
             </StackPanel>
 
             <!-- 第二行：持仓信息 -->
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="1" HorizontalAlignment="Left">
-                <TextBlock Text="持股数量:" VerticalAlignment="Center" Margin="6,0"/>
+                <TextBlock Text="Number of Shares:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBox x:Name="SharesBox" Width="80" Text="400" />
-                <TextBlock Text="成本价:" VerticalAlignment="Center" Margin="6,0"/>
+                <TextBlock Text="Cost Price:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBox x:Name="CostBox" Width="80" Text="40.915" />
-                <TextBlock Text="当前价:" VerticalAlignment="Center" Margin="6,0"/>
+                <TextBlock Text="Current Price:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBox x:Name="CurrentPrice" Width="80" Text="" />
-                <TextBlock x:Name="PositionProfitText" Text="持仓盈亏: --" Margin="12,0"/>
-                <TextBlock x:Name="TodayProfitText" Text="今日盈亏: --" Margin="12,0"/>
-                <Button x:Name="UpdateProfitBtn" Content="更新盈亏" Margin="6,0" Width="80"/>
+                <TextBlock x:Name="PositionProfitText" Text="Unrealized P/L: --" Margin="12,0"/>
+                <TextBlock x:Name="TodayProfitText" Text="Today's P/L: --" Margin="12,0"/>
             </StackPanel>
 
             <!-- 第三行：图表区域 -->
@@ -63,7 +62,7 @@
             </Grid>
 
             <!-- 底部提示 -->
-            <TextBlock Grid.Row="3" Text="提示：支持 000001/300750/601318 等代码 | 红色: 买入为主，绿色: 卖出为主"
+            <TextBlock Grid.Row="3" Text="Hint: Supports codes like 000001 / 300750 / 601318 | Red: Mainly buying, Green: Mainly selling"
                        FontSize="11" Foreground="Gray" Margin="3"/>
         </Grid>
     </ScrollViewer>
