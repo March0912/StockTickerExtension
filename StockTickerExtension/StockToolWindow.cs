@@ -23,7 +23,7 @@ namespace StockTickerExtension
         /// </summary>
         public StockToolWindow() : base(null)
         {
-            this.Caption = "股票分时图";
+            this.Caption = "StockMonitoring";
 
             // This is the user control hosted by the tool window; Note that, even if this class implements IDisposable,
             // we are not calling Dispose on this object. This is because ToolWindowPane calls Dispose on
