@@ -2,7 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:scottplt="clr-namespace:ScottPlot;assembly=ScottPlot.WPF"
-             Height="350" Width="1100" 
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             Height="350" MaxWidth="1800" 
              HorizontalAlignment="Left"
              VerticalAlignment="Top">
 
@@ -35,7 +36,12 @@
                 <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center"/>
                 <TextBlock Text=" " Width="20"/>
                 <CheckBox x:Name="AutoStopCheckBox" Content="Stop when closed" IsChecked="False" Margin="6,0" VerticalAlignment="Center"/>
-                <TextBlock x:Name="StatusText" Text="Please input code" VerticalAlignment="Center" Foreground="Blue"/>
+                <ComboBox x:Name="PeriodComboBox" Width="100" SelectedIndex="0" Margin="6,0"/>
+                <DatePicker x:Name="DatePickerControl" Width="130" Margin="6,0" IsEnabled="False"
+                            SelectedDate="{x:Static sys:DateTime.Today}"
+                            DisplayDateEnd="{x:Static sys:DateTime.Today}"
+                            VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Text="Please input code" VerticalAlignment="Center" Foreground="Blue" Margin="6,0"/>
             </StackPanel>
 
             <!-- 第二行：持仓信息 -->
