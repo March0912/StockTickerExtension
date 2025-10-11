@@ -11,45 +11,58 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TrackBar;
 
 namespace StockTickerExtension
 {
+    public partial class StockSnapshot
+    {
+        public string Code { get; set; }
+        public string Name { get; set; }
+        public double CurrentPrice { get; set; }
+        public double[] Prices { get; set; }
+        public double[] AvgPrices { get; set; }
+        public double[] Volumes { get; set; }
+        public double[] BuyVolumes { get; set; }
+        public double[] SellVolumes { get; set; }
+        public double? ChangePercent { get; set; }
+    };
+
+    public enum ChartType
+    {
+        Intraday = 0,
+        DailyK,
+        WeeklyK,
+        MonthlyK,
+        QuarterlyK,
+        YearlyK,
+    };
+
     public partial class StockToolWindowControl : UserControl
     {
-        private class StockSnapshot
-        {
-            public string Code { get; set; }
-            public string Name { get; set; }
-            public double CurrentPrice { get; set; }
-            public double[] Prices { get; set; }
-            public double[] AvgPrices { get; set; }
-            public double[] Volumes { get; set; }
-            public double[] BuyVolumes { get; set; }
-            public double[] SellVolumes { get; set; }
-            public double? ChangePercent { get; set; }
-        };
-
         private CancellationTokenSource _cts;
         private readonly HttpClient _http = new HttpClient();
         private readonly ConcurrentQueue<StockSnapshot> _queue = new ConcurrentQueue<StockSnapshot>();
         private DispatcherTimer _uiTimer;
 
-        private readonly List<string> _tradingMinutes;
-        private readonly int _totalMinutes;
+        private List<string> _tradingMinutes;
+        private int _totalMinutes;
         private int _fetchIntervalSeconds = 5;
         private bool _monitoring = false;
-
+        private DateTime _currentDate;
         public StockToolWindowControl()
         {
             InitializeComponent();
 
-            _tradingMinutes = BuildTradingMinutes();
+            _currentDate = GetCurrentDate();
+            _tradingMinutes = BuildTradingMinutes(_currentDate);
             _totalMinutes = _tradingMinutes.Count;
 
             Init();
         }
 
         private void StartBtn_Click(object sender, System.Windows.RoutedEventArgs e) => StartMonitoring();
+
         private void StopBtn_Click(object sender, System.Windows.RoutedEventArgs e) => StopMonitoring();
 
         private void CodeTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
@@ -80,6 +93,34 @@ namespace StockTickerExtension
             }
         }
 
+        private void PeriodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (PeriodComboBox.SelectedItem is ComboBoxItem item)
+            {
+                if (item.Content.ToString() == "Intraday")
+                {
+                    DatePickerControl.IsEnabled = false;
+                    PeriodComboBox.SelectedItem = DateTime.Today;
+                }
+                else
+                {
+                    DatePickerControl.IsEnabled = true;
+                }
+            }
+            if (_monitoring)
+            {
+                StopMonitoring(); // 切换周期时先停止监控
+                StartMonitoring();
+            }
+        }
+
+        private void Date_SelecteionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _currentDate = GetCurrentDate();           
+            _tradingMinutes = BuildTradingMinutes(_currentDate);
+            _totalMinutes = _tradingMinutes.Count;
+        }
+
         private void Init()
         {
             StartBtn.Click += StartBtn_Click;
@@ -90,21 +131,42 @@ namespace StockTickerExtension
             DataObject.AddPastingHandler(CodeTextBox, CodeTextBox_Pasting);
             // 当 UserControl 卸载（窗口关闭）时停止监控
             this.Unloaded += StockToolWindowControl_Unloaded;
+            DatePickerControl.SelectedDateChanged += Date_SelecteionChanged;
 
+            InitPeriodComboBox();
+            InitPriceChat();
+
+            _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
+        }
+
+        private void InitPeriodComboBox()
+        {
+            PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Intraday" });
+//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Daily K" });
+//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Weekly K" });
+//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Monthly K" });
+//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Quarterly K" });
+//             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Yearly K" });
+
+            PeriodComboBox.SelectionChanged += PeriodComboBox_SelectionChanged;
+        }
+
+        private void InitPriceChat()
+        {
             WpfPlotPrice.Configuration.ScrollWheelZoom = false;
             WpfPlotPrice.Configuration.LeftClickDragPan = false;
 
             WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _totalMinutes - 1);
 
             // 关键时间点
-            var today = DateTime.Today.ToString("yyyy-MM-dd ");
+            var dateStr = _currentDate.ToString("yyyy-MM-dd ");
 
-            var labelTimes = new[] { today + "09:30", today + "10:00", today + "10:30", today + "11:00", today + "11:30", today + "13:30", today + "14:00", today + "14:30", today + "15:00" };
+            var labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
             var ticks = new List<double>();
             var labels = new List<string>();
             foreach (var t in labelTimes)
             {
-                int idx = _tradingMinutes.IndexOf(t);  // _tradingMinutes 是交易分钟列表
+                int idx = _tradingMinutes.IndexOf(t);
                 if (idx >= 0)
                 {
                     ticks.Add(idx);
@@ -114,23 +176,17 @@ namespace StockTickerExtension
             // 设置 X 轴刻度
             if (ticks.Count > 0)
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
-
-            _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
         }
-
-        /// <summary>
-        /// 构建交易时间段内的所有分钟时间点列表
-        /// </summary>
-        /// <returns>返回包含交易时间段内每分钟时间点的字符串列表</returns>
-        private List<string> BuildTradingMinutes()
+        private List<string> BuildTradingMinutes(DateTime date)
         {
             var list = new List<string>();
-            var t = DateTime.Today.AddHours(9).AddMinutes(30);
-            var end = DateTime.Today.AddHours(11).AddMinutes(30);
+
+            var t = date.AddHours(9).AddMinutes(30);
+            var end = date.AddHours(11).AddMinutes(30);
             while (t <= end) { list.Add(t.ToString("yyyy-MM-dd HH:mm")); t = t.AddMinutes(1); }
 
-            t = DateTime.Today.AddHours(13);
-            end = DateTime.Today.AddHours(15);
+            t = date.AddHours(13);
+            end = date.AddHours(15);
             while (t <= end) { list.Add(t.ToString("yyyy-MM-dd HH:mm")); t = t.AddMinutes(1); }
 
             return list;
@@ -153,27 +209,44 @@ namespace StockTickerExtension
                    (nowTime >= afternoonStart && nowTime <= afternoonEnd);
         }
 
-        private void StartMonitoring()
+        bool CheckTradingTime(string period)
         {
             var code = CodeTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(code))
             {
                 StatusText.Text = "Error: Please enter a stock code";
                 StatusText.Foreground = Brushes.Red;
-                return;
+                return false;
             }
 
             // ------------------ 检查交易时间 ------------------
-            if (!IsTradingTime(DateTime.Now))
+            if (period == "Intraday" && !IsTradingTime(DateTime.Now))
             {
                 StatusText.Text = "Currently outside trading hours, monitoring cannot start";
                 StatusText.Foreground = Brushes.Red;
-                return;
+                return false;
             }
+            return true;
+        }
+
+        private void StartMonitoring()
+        {
+            string period;
+            if (PeriodComboBox.SelectedItem is ComboBoxItem item)
+            {
+                period = item.Content.ToString();
+            }
+            else
+                period = PeriodComboBox.Text;
+
+            if (!CheckTradingTime(period))
+                return;
 
             StopMonitoring();
+
+            var code = CodeTextBox.Text?.Trim();
             _cts = new CancellationTokenSource();
-            _=Task.Run(() => FetchLoopAsync(code, _cts.Token));
+            _ =Task.Run(() => FetchLoopAsync(code, period, _cts.Token));
 
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
             StatusText.Text = "";
@@ -191,6 +264,7 @@ namespace StockTickerExtension
 
             StopBtn.IsEnabled = false;
             StartBtn.IsEnabled = true;
+            _monitoring = false;
 
             _cts?.Cancel();
             _cts = null;
@@ -199,7 +273,34 @@ namespace StockTickerExtension
             if (_uiTimer.IsEnabled) _uiTimer.Stop();
         }
 
-        private async Task FetchLoopAsync(string code, CancellationToken token)
+        private string PeriodToKType(string period)
+        {
+            string kType;
+            switch (period)
+            {
+                case "Daily K":
+                    kType = "101";
+                    break;
+                case "Weekly K":
+                    kType = "102";
+                    break;
+                case "Monthly K":
+                    kType = "103";
+                    break;
+                case "Quarterly K":
+                    kType = "104";
+                    break;
+                case "Yearly K":
+                    kType = "105";
+                    break;
+                default:
+                    kType = "Intraday";
+                    break;
+            }
+            return kType;
+        }
+
+        private async Task FetchLoopAsync(string code, string period, CancellationToken token)
         {
             if (!_monitoring)
                 return;
@@ -210,12 +311,12 @@ namespace StockTickerExtension
             {
                 try
                 {
-                    var snapshot = await FetchSnapshotAsync(codeWithSuffix);
-                    if (snapshot != null)
+                    var snap = await FetchKSnapshotAsync(codeWithSuffix, period);
+                    if (snap != null)
                     {
-                        snapshot.Code = code;
+                        snap.Code = code;
                         while (_queue.Count > 0) _queue.TryDequeue(out _);
-                        _queue.Enqueue(snapshot);
+                        _queue.Enqueue(snap);
                     }
                 }
                 catch (OperationCanceledException) { break; }
@@ -229,19 +330,81 @@ namespace StockTickerExtension
             }
         }
 
-        private string NormalizeCode(string code)
+        private async Task<StockSnapshot> FetchKSnapshotAsync(string codeWithSuffix, string period)
         {
-            code = code.Trim();
-            if (code.EndsWith(".SZ", StringComparison.OrdinalIgnoreCase) || code.EndsWith(".SH", StringComparison.OrdinalIgnoreCase))
-                return code.ToUpper();
-            return code.StartsWith("6") ? code + ".SH" : code + ".SZ";
-        }
+            if(period == "Intraday")
+               return await FetchSnapshotAsync(codeWithSuffix);
 
-        private string GetSecId(string codeWithSuffix)
-        {
-            if (codeWithSuffix.EndsWith(".SZ")) return "0." + codeWithSuffix.Replace(".SZ", "");
-            if (codeWithSuffix.EndsWith(".SH")) return "1." + codeWithSuffix.Replace(".SH", "");
-            return null;
+            var secid = GetSecId(codeWithSuffix);
+            if (secid == null) return null;
+
+            var kType = PeriodToKType(period);
+
+            string begStr;
+            if(period == "Daily K")
+                begStr = _currentDate.AddDays(-200).ToString("yyyyMMdd");
+            else if (period == "Weekly K")
+                begStr = _currentDate.AddDays(-365*3).ToString("yyyyMMdd");
+            else if (period == "Monthly K")
+                begStr = _currentDate.AddMonths(-36).ToString("yyyyMMdd");
+            else if (period == "Quarterly K")
+                begStr = _currentDate.AddMonths(-20).ToString("yyyyMMdd");
+            else if (period == "Yearly K")
+                begStr = _currentDate.AddYears(-10).ToString("yyyyMMdd");
+            else
+                begStr = _currentDate.AddDays(-200).ToString("yyyyMMdd");
+
+            string dateStr = _currentDate.ToString("yyyyMMdd");
+            string url = $"https://push2his.eastmoney.com/api/qt/stock/kline/get?secid={secid}&klt={kType}&fqt=1&beg={begStr}&end={dateStr}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57,f58";
+
+            string text;
+            using (var resp = await _http.GetAsync(url))
+            {
+                if (!resp.IsSuccessStatusCode) return null;
+
+                text = await resp.Content.ReadAsStringAsync();
+            }
+            var jobj = JObject.Parse(text);
+            if (jobj["data"] == null || jobj["data"]["klines"] == null) return null;
+
+            var klines = jobj["data"]["klines"].ToObject<string[]>();
+            if (klines.Length == 0) return null;
+
+            var name = jobj["data"]["name"]?.ToString();
+            int count = klines.Length;
+            var prices = new double[count];
+            var avgPrices = new double[count];
+            var vols = new double[count];
+
+            for (int i = 0; i < count; i++)
+            {
+                var parts = klines[i].Split(',');
+                double open = double.Parse(parts[1]);
+                double close = double.Parse(parts[2]);
+                double low = double.Parse(parts[3]);
+                double high = double.Parse(parts[4]);
+                double vol = double.Parse(parts[5]);
+
+                prices[i] = close;
+//                 avgPrices[i] = (open + close + high + low) / 4.0;
+                vols[i] = vol;
+            }
+
+            double lastPrice = prices.Last();
+            double changePercent = (count >= 2) ? (lastPrice - prices[count - 2]) / prices[count - 2] * 100 : 0;
+
+            return new StockSnapshot
+            {
+                Code = codeWithSuffix,
+                Name = name,
+                Prices = prices,
+                AvgPrices = avgPrices,
+                Volumes = vols,
+                BuyVolumes = vols.Select(v => v * 0.5).ToArray(),
+                SellVolumes = vols.Select(v => v * 0.5).ToArray(),
+                CurrentPrice = lastPrice,
+                ChangePercent = changePercent
+            };
         }
 
         private async Task<StockSnapshot> FetchSnapshotAsync(string codeWithSuffix)
@@ -250,8 +413,8 @@ namespace StockTickerExtension
             if (secid == null) return null;
 
             var url = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
-            var currentDate = DateTime.Now.ToString("yyyyMMdd");
-            var parameters = $"?fields1=f1,f2,f3,f4,f5,f6,f7,f8&fields2=f51,f52,f53,f54,f55,f56,f57,f58&iscr=0&ndays=1&secid={secid}&ut=fa5fd1943c7b386f172d6893dbfba10b&trends={currentDate}";
+            var dateStr = _currentDate.ToString("yyyyMMdd");
+            var parameters = $"?fields1=f1,f2,f3,f4,f5,f6,f7,f8&fields2=f51,f52,f53,f54,f55,f56,f57,f58&iscr=0&ndays=1&secid={secid}&ut=fa5fd1943c7b386f172d6893dbfba10b&trends={dateStr}";
             var requestUrl = url + parameters;
 
             using (var req = new HttpRequestMessage(HttpMethod.Get, requestUrl))
@@ -290,7 +453,7 @@ namespace StockTickerExtension
                 {
                     var r = parsedRows[i];
                     int idx = _tradingMinutes.IndexOf(r.time);
-                    if (idx < 0 || idx >= _totalMinutes) 
+                    if (idx < 0 || idx >= _totalMinutes)
                         continue;
                     prices[idx] = r.price;
                     avgPrices[idx] = r.avg;
@@ -300,11 +463,11 @@ namespace StockTickerExtension
                 for (int i = 0; i < parsedRows.Count; i++)
                 {
                     int idx = _tradingMinutes.IndexOf(parsedRows[i].time);
-                    if (idx < 0 || idx >= _totalMinutes) 
+                    if (idx < 0 || idx >= _totalMinutes)
                         continue;
-                    if (i == 0) 
-                    { 
-                        buy[idx] = vols[idx] * 0.5; 
+                    if (i == 0)
+                    {
+                        buy[idx] = vols[idx] * 0.5;
                         sell[idx] = vols[idx] * 0.5;
                     }
                     else
@@ -312,22 +475,22 @@ namespace StockTickerExtension
                         double cur = parsedRows[i].price;
                         double prev = parsedRows[i - 1].price;
                         if (double.IsNaN(cur) || double.IsNaN(prev))
-                        { 
-                            buy[idx] = vols[idx] * 0.5; 
-                            sell[idx] = vols[idx] * 0.5; 
+                        {
+                            buy[idx] = vols[idx] * 0.5;
+                            sell[idx] = vols[idx] * 0.5;
                         }
-                        else if (cur > prev) 
-                        { 
-                            buy[idx] = vols[idx]; 
+                        else if (cur > prev)
+                        {
+                            buy[idx] = vols[idx];
                             sell[idx] = 0;
                         }
                         else if (cur < prev)
-                        { 
-                            buy[idx] = 0; 
-                            sell[idx] = vols[idx]; 
+                        {
+                            buy[idx] = 0;
+                            sell[idx] = vols[idx];
                         }
-                        else 
-                        { 
+                        else
+                        {
                             buy[idx] = vols[idx] * 0.5;
                             sell[idx] = vols[idx] * 0.5;
                         }
@@ -355,6 +518,21 @@ namespace StockTickerExtension
             }
         }
 
+        private string NormalizeCode(string code)
+        {
+            code = code.Trim();
+            if (code.EndsWith(".SZ", StringComparison.OrdinalIgnoreCase) || code.EndsWith(".SH", StringComparison.OrdinalIgnoreCase))
+                return code.ToUpper();
+            return code.StartsWith("6") ? code + ".SH" : code + ".SZ";
+        }
+
+        private string GetSecId(string codeWithSuffix)
+        {
+            if (codeWithSuffix.EndsWith(".SZ")) return "0." + codeWithSuffix.Replace(".SZ", "");
+            if (codeWithSuffix.EndsWith(".SH")) return "1." + codeWithSuffix.Replace(".SH", "");
+            return null;
+        }
+
         private void UiTimer_Tick(object sender, EventArgs e)
         {
             if (!_monitoring)
@@ -364,17 +542,32 @@ namespace StockTickerExtension
             {
                 if (string.IsNullOrEmpty(StatusText.Text))
                 {
-                    StatusText.Text = $"Monitoring in progress {snap.Code} {snap.Name}";
+                    StatusText.Text = $"Monitoring {snap.Code} {snap.Name}";
                     StatusText.Foreground = Brushes.Blue;
                 }
-                UpdatePriceChart(snap.Prices, snap.AvgPrices, snap.BuyVolumes, snap.SellVolumes);
+                UpdatePriceChart(snap);
                 ChangePercentText.Text = snap.ChangePercent.HasValue ? $"{snap.ChangePercent.Value:F2}%" : "--%";
                 CurrentPrice.Text = snap.CurrentPrice.ToString();
                 UpdateProfitDisplay();
             }
         }
 
-        private void UpdatePriceChart(double[] prices, double[] avgPrices, double[] buyVolumes, double[] sellVolumes)
+        private void UpdatePriceChart(StockSnapshot snap)
+        {
+            if (!_monitoring)
+                return;
+
+            if(GetChatType() == ChartType.Intraday)
+            {
+                DrawIntradayPriceChart(snap);
+            }
+            else
+            {
+                DrawKlinePriceChart(snap);
+            }
+        }
+
+        private void DrawIntradayPriceChart(StockSnapshot snap)
         {
             if (!_monitoring)
                 return;
@@ -382,15 +575,17 @@ namespace StockTickerExtension
             List<double> safePrices = new List<double>();
             List<double> safeAvgPrices = new List<double>();
 
-            for (int i = 0; i < prices.Length; i++)
+            for (int i = 0; i < snap.Prices.Length; i++)
             {
-                if (!double.IsNaN(prices[i])) safePrices.Add(prices[i]);
-                if (!double.IsNaN(avgPrices[i])) safeAvgPrices.Add(avgPrices[i]);
+                if (!double.IsNaN(snap.Prices[i])) safePrices.Add(snap.Prices[i]);
+                if (!double.IsNaN(snap.AvgPrices[i])) safeAvgPrices.Add(snap.AvgPrices[i]);
             }
             if (safePrices.Count == 0)
                 return;
 
             WpfPlotPrice.Plot.Clear();
+
+            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: safePrices.Count);
 
             var xs = Enumerable.Range(0, safePrices.Count).Select(i => (double)i).ToArray();
 
@@ -399,10 +594,10 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.AddScatter(xs, safeAvgPrices.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 2.0f, markerSize: 2.2f);
 
             // 成交量（右Y轴）
-            if (buyVolumes != null && sellVolumes != null)
+            if (snap.BuyVolumes != null && snap.SellVolumes != null)
             {
-                var safeBuy = buyVolumes.Take(safePrices.Count).ToArray();
-                var safeSell = sellVolumes.Take(safePrices.Count).ToArray();
+                var safeBuy = snap.BuyVolumes.Take(safePrices.Count).ToArray();
+                var safeSell = snap.SellVolumes.Take(safePrices.Count).ToArray();
 
                 var barBuy = WpfPlotPrice.Plot.AddBar(safeBuy, xs);
                 barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
@@ -414,8 +609,8 @@ namespace StockTickerExtension
             }
 
             // 设置坐标轴
-            var today = DateTime.Today.ToString("yyyy-MM-dd ");
-            var labelTimes = new[] { today + "09:30", today + "10:00", today + "10:30", today + "11:00", today + "11:30", today + "13:30", today + "14:00", today + "14:30", today + "15:00" };
+            var dateStr = _currentDate.ToString("yyyy-MM-dd ");
+            var labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
             var ticks = new List<double>();
             var labels = new List<string>();
             foreach (var t in labelTimes)
@@ -450,10 +645,74 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1, yAxisIndex: 0);
 
             // 调整右侧成交量轴范围
-            double maxVolume = Math.Max(buyVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0,
-                                        sellVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0);
+            double maxVolume = Math.Max(snap.BuyVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0,
+                                        snap.SellVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0);
             WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3, yAxisIndex: 1); // 上限提高20%
-    
+
+            WpfPlotPrice.Render();
+        }
+
+        private void DrawKlinePriceChart(StockSnapshot snap)
+        {
+            List<double> safePrices = new List<double>();
+            List<double> safeAvgPrices = new List<double>();
+
+            for (int i = 0; i < snap.Prices.Length; i++)
+            {
+                if (!double.IsNaN(snap.Prices[i])) safePrices.Add(snap.Prices[i]);
+                if (!double.IsNaN(snap.AvgPrices[i])) safeAvgPrices.Add(snap.AvgPrices[i]);
+            }
+            if (safePrices.Count == 0)
+                return;
+
+            WpfPlotPrice.Plot.Clear();
+
+            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: safePrices.Count);
+
+            var xs = Enumerable.Range(0, safePrices.Count).Select(i => (double)i).ToArray();
+
+            // 价格曲线
+            WpfPlotPrice.Plot.AddScatter(xs, safePrices.ToArray(), color: System.Drawing.Color.FromArgb(31, 119, 180), lineWidth: 2.0f, markerSize: 2.2f);
+
+            // 成交量（右Y轴）
+            if (snap.BuyVolumes != null && snap.SellVolumes != null)
+            {
+                var safeBuy = snap.BuyVolumes.Take(safePrices.Count).ToArray();
+                var safeSell = snap.SellVolumes.Take(safePrices.Count).ToArray();
+
+                var barBuy = WpfPlotPrice.Plot.AddBar(safeBuy, xs);
+                barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
+                barBuy.YAxisIndex = 1; // 使用右Y轴
+
+                var barSell = WpfPlotPrice.Plot.AddBar(safeSell, xs);
+                barSell.FillColor = System.Drawing.Color.FromArgb(100, 0, 255, 0);
+                barSell.YAxisIndex = 1;
+            }
+
+            // 坐标轴名称
+            WpfPlotPrice.Plot.YLabel("Price(RMB)");
+            WpfPlotPrice.Plot.YAxis2.Label("Volume (Lots)");
+
+            // 设置右轴显示
+            WpfPlotPrice.Plot.YAxis2.Ticks(true);
+            WpfPlotPrice.Plot.YAxis2.Color(System.Drawing.Color.Gray);
+
+            // 自动缩放
+            WpfPlotPrice.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
+
+            // ------------------ 价格轴（左Y轴）留20%空间 ------------------
+            double maxPrice = Math.Max(safePrices.DefaultIfEmpty(0).Max(), safeAvgPrices.DefaultIfEmpty(0).Max());
+            double minPrice = Math.Min(safePrices.DefaultIfEmpty(0).Min(), safeAvgPrices.DefaultIfEmpty(0).Min());
+
+            // 上下各留出10%的空间（总共扩大20%）
+            double priceRange = maxPrice - minPrice;
+            WpfPlotPrice.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1, yAxisIndex: 0);
+
+            // 调整右侧成交量轴范围
+            double maxVolume = Math.Max(snap.BuyVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0,
+                                        snap.SellVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0);
+            WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3, yAxisIndex: 1); // 上限提高20%
+
             WpfPlotPrice.Render();
         }
 
@@ -469,6 +728,21 @@ namespace StockTickerExtension
 
             PositionProfitText.Text = $"nrealized P/L: {positionProfit:F2}";
             TodayProfitText.Text = $"Today's P/L: {todayProfit:F2}";
+        }
+
+        private DateTime GetCurrentDate()
+        {
+            string s = DatePickerControl.Text;
+            if (DateTime.TryParse(s, out DateTime date))
+            {
+                return date;
+            }
+            return DateTime.Today;
+        }
+
+        private ChartType GetChatType()
+        {
+            return (ChartType)PeriodComboBox.SelectedIndex;
         }
     }
 }
