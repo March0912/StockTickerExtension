@@ -10,13 +10,26 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.TrackBar;
-using System.Text.RegularExpressions;
+using System.Windows.Media;
+using System.Windows.Media;
 
 namespace StockTickerExtension
 {
     public partial class StockToolWindowControl : UserControl
     {
+        private class StockSnapshot
+        {
+            public string Code { get; set; }
+            public string Name { get; set; }
+            public double CurrentPrice { get; set; }
+            public double[] Prices { get; set; }
+            public double[] AvgPrices { get; set; }
+            public double[] Volumes { get; set; }
+            public double[] BuyVolumes { get; set; }
+            public double[] SellVolumes { get; set; }
+            public double? ChangePercent { get; set; }
+        };
+
         private CancellationTokenSource _cts;
         private readonly HttpClient _http = new HttpClient();
         private readonly ConcurrentQueue<StockSnapshot> _queue = new ConcurrentQueue<StockSnapshot>();
@@ -105,6 +118,10 @@ namespace StockTickerExtension
             _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
         }
 
+        /// <summary>
+        /// 构建交易时间段内的所有分钟时间点列表
+        /// </summary>
+        /// <returns>返回包含交易时间段内每分钟时间点的字符串列表</returns>
         private List<string> BuildTradingMinutes()
         {
             var list = new List<string>();
@@ -119,27 +136,40 @@ namespace StockTickerExtension
             return list;
         }
 
+        bool IsWeekend(DateTime dt) => dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday;
+
+        bool IsTradingTime(DateTime dt)
+        {
+            if (IsWeekend(dt))
+                return false;
+
+            TimeSpan morningStart = new TimeSpan(9, 30, 0);
+            TimeSpan morningEnd = new TimeSpan(11, 30, 0);
+            TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
+            TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
+
+            TimeSpan nowTime = dt.TimeOfDay;
+            return (nowTime >= morningStart && nowTime <= morningEnd) ||
+                   (nowTime >= afternoonStart && nowTime <= afternoonEnd);
+        }
+
         private void StartMonitoring()
         {
             var code = CodeTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(code))
             {
                 StatusText.Text = "错误：请输入股票代码";
+                StatusText.Foreground = Brushes.Red;
                 return;
             }
 
             // ------------------ 检查交易时间 ------------------
-            var now = DateTime.Now;
-            bool inMorning = now.TimeOfDay >= TimeSpan.FromHours(9).Add(TimeSpan.FromMinutes(30)) &&
-                             now.TimeOfDay <= TimeSpan.FromHours(11).Add(TimeSpan.FromMinutes(30));
-            bool inAfternoon = now.TimeOfDay >= TimeSpan.FromHours(13).Add(TimeSpan.FromMinutes(30)) &&
-                               now.TimeOfDay <= TimeSpan.FromHours(15);
-
-//             if (!inMorning && !inAfternoon)
-//             {
-//                 StatusText.Text = "当前时间不在交易时间内，无法启动监控";
-//                 return;
-//             }
+            if (!IsTradingTime(DateTime.Now))
+            {
+                StatusText.Text = "当前不在交易时间，无法启动监控";
+                StatusText.Foreground = Brushes.Red;
+                return;
+            }
 
             StopMonitoring();
             _cts = new CancellationTokenSource();
@@ -154,6 +184,7 @@ namespace StockTickerExtension
             _cts?.Cancel();
             _cts = null;
             StatusText.Text = "监控已停止";
+            StatusText.Foreground = Brushes.Blue;
             if (_uiTimer.IsEnabled) _uiTimer.Stop();
         }
 
@@ -317,6 +348,7 @@ namespace StockTickerExtension
                 if (string.IsNullOrEmpty(StatusText.Text))
                 {
                     StatusText.Text = $"正在监控 {snap.Code} {snap.Name}";
+                    StatusText.Foreground = Brushes.Blue;
                 }
                 UpdatePriceChart(snap.Prices, snap.AvgPrices, snap.BuyVolumes, snap.SellVolumes);
                 ChangePercentText.Text = snap.ChangePercent.HasValue ? $"{snap.ChangePercent.Value:F2}%" : "--%";
@@ -335,6 +367,8 @@ namespace StockTickerExtension
                 if (!double.IsNaN(prices[i])) safePrices.Add(prices[i]);
                 if (!double.IsNaN(avgPrices[i])) safeAvgPrices.Add(avgPrices[i]);
             }
+            if (safePrices.Count == 0)
+                return;
 
             WpfPlotPrice.Plot.Clear();
 
@@ -415,19 +449,6 @@ namespace StockTickerExtension
 
             PositionProfitText.Text = $"持仓盈亏: {positionProfit:F2}";
             TodayProfitText.Text = $"今日盈亏: {todayProfit:F2}";
-        }
-
-        private class StockSnapshot
-        {
-            public string Code { get; set; }
-            public string Name { get; set; }
-            public double CurrentPrice { get; set; }
-            public double[] Prices { get; set; }
-            public double[] AvgPrices { get; set; }
-            public double[] Volumes { get; set; }
-            public double[] BuyVolumes { get; set; }
-            public double[] SellVolumes { get; set; }
-            public double? ChangePercent { get; set; }
         }
     }
 }
