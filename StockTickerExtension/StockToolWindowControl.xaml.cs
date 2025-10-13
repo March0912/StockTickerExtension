@@ -83,6 +83,7 @@ namespace StockTickerExtension
         private int _totalMinutes;
         private int _fetchIntervalSeconds = 5;
         private bool _monitoring = false;
+        private bool _monitorOnce = false;
         private DateTime _currentDate;
         private CancellationTokenSource _kdjCts;
 
@@ -278,6 +279,7 @@ namespace StockTickerExtension
                 var closeTime = new TimeSpan(15, 0, 0);
                 if (now > closeTime)
                 {
+                    _monitorOnce = true;
                     return true;
                 }
 
@@ -316,7 +318,6 @@ namespace StockTickerExtension
 
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
             UpdateStatus("", Brushes.Blue);
-
            
             StartBtn.IsEnabled = false;
             StopBtn.IsEnabled = true;
@@ -649,6 +650,11 @@ namespace StockTickerExtension
                 if (GetChatType() != ChartType.Intraday)
                 {
                     CheckKdjGoldenCross(snap);
+                }
+                if(_monitorOnce)
+                {
+                    StopBtn_Click(null, null);
+                    _monitorOnce = false;
                 }
             }
         }
