@@ -67,9 +67,6 @@
                 <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" Grid.Row="0" HorizontalAlignment="Stretch" Margin="0,0,20,6"/>
                 <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="240" Grid.Row="2" HorizontalAlignment="Stretch" Margin="0,0,20,6" />
             </Grid>
-            <!-- 底部提示 -->
-            <TextBlock Grid.Row="3" Text="Hint: Supports codes like 000001 / 300750 / 601318 | Red: Mainly buying, Green: Mainly selling"
-                       FontSize="11" Foreground="Gray" Margin="3"/>
         </Grid>
     </ScrollViewer>
 </UserControl>

@@ -19,13 +19,41 @@ namespace StockTickerExtension
         public string Code { get; set; }
         public string Name { get; set; }
         public double CurrentPrice { get; set; }
+        /// <summary>
+        /// 开盘价
+        /// </summary>
+        public double[] OpenPrice { get; set; }
+        /// <summary>
+        /// 收盘价/实时价
+        /// </summary>
         public double[] Prices { get; set; }
+        /// <summary>
+        /// 均线价
+        /// </summary>
         public double[] AvgPrices { get; set; }
+        /// <summary>
+        /// 最高价
+        /// </summary>
         public double[] HighPrices { get; set; }
+        /// <summary>
+        /// 最低价
+        /// </summary>
         public double[] LowPrices { get; set; }
+        /// <summary>
+        /// 总成交量
+        /// </summary>
         public double[] Volumes { get; set; }
+        /// <summary>
+        /// 买入成交量
+        /// </summary>
         public double[] BuyVolumes { get; set; }
+        /// <summary>
+        /// 卖出成交量
+        /// </summary>
         public double[] SellVolumes { get; set; }
+        /// <summary>
+        /// 涨跌幅
+        /// </summary>
         public double? ChangePercent { get; set; }
     };
 
@@ -107,13 +135,15 @@ namespace StockTickerExtension
                 {
                     DatePickerControl.IsEnabled = false;
                     PeriodComboBox.SelectedItem = DateTime.Today;
-                    WpfPlotPrice.Height = PriceChatMinHeight;
+//                     WpfPlotPrice.Height = PriceChatMinHeight;
+                    WpfPlotPrice.Plot.Clear();
+                    WpfPlotPrice.Render();
                     WpfPlotVolume.Visibility = Visibility.Hidden;
                 }
                 else
                 {
                     DatePickerControl.IsEnabled = true;
-                    WpfPlotPrice.Height = PriceChatMaxHeight;
+//                     WpfPlotPrice.Height = PriceChatMaxHeight;
                     WpfPlotVolume.Visibility = Visibility.Visible;
                 }
             }
@@ -152,7 +182,7 @@ namespace StockTickerExtension
         private void InitPeriodComboBox()
         {
             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Intraday" });
-            if (false)
+            if (true)
             {
                 PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Daily K" });
                 PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Weekly K" });
@@ -167,8 +197,10 @@ namespace StockTickerExtension
         {
             WpfPlotPrice.Configuration.ScrollWheelZoom = false;
             WpfPlotPrice.Configuration.LeftClickDragPan = false;
-
             WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _totalMinutes - 1);
+
+            WpfPlotVolume.Configuration.ScrollWheelZoom = false;
+            WpfPlotVolume.Configuration.LeftClickDragPan = false;
 
             // 关键时间点
             var dateStr = _currentDate.ToString("yyyy-MM-dd ");
@@ -191,6 +223,7 @@ namespace StockTickerExtension
 
             WpfPlotVolume.Visibility = Visibility.Hidden;
         }
+
         private List<string> BuildTradingMinutes(DateTime date)
         {
             var list = new List<string>();
@@ -376,11 +409,11 @@ namespace StockTickerExtension
             if(period == "Daily K")
                 begStr = _currentDate.AddDays(-200).ToString("yyyyMMdd");
             else if (period == "Weekly K")
-                begStr = _currentDate.AddDays(-365*3).ToString("yyyyMMdd");
+                begStr = _currentDate.AddDays(-120*3).ToString("yyyyMMdd");
             else if (period == "Monthly K")
-                begStr = _currentDate.AddMonths(-36).ToString("yyyyMMdd");
+                begStr = _currentDate.AddMonths(-200).ToString("yyyyMMdd");
             else if (period == "Quarterly K")
-                begStr = _currentDate.AddMonths(-20).ToString("yyyyMMdd");
+                begStr = _currentDate.AddMonths(-200).ToString("yyyyMMdd");
             else if (period == "Yearly K")
                 begStr = _currentDate.AddYears(-10).ToString("yyyyMMdd");
             else
@@ -409,45 +442,33 @@ namespace StockTickerExtension
             var vols = new double[count];
             var highs = new double[count];
             var lows = new double[count];
+            var openPrice = new double[count];
 
             for (int i = 0; i < count; i++)
             {
                 var parts = klines[i].Split(',');
                 double open = double.Parse(parts[1]);
                 double close = double.Parse(parts[2]);
-                double low = double.Parse(parts[3]);
-                double high = double.Parse(parts[4]);
+                double high = double.Parse(parts[3]);
+                double low = double.Parse(parts[4]);
                 double vol = double.Parse(parts[5]);
 
+                openPrice[i] = open;
                 prices[i] = close;
                 highs[i] = high;
                 lows[i] = low;
-//                 avgPrices[i] = (open + close + high + low) / 4.0;
+                avgPrices[i] = (open + close + high + low) / 4.0;
                 vols[i] = vol;
             }
 
             double lastPrice = prices.Last();
             double changePercent = (count >= 2) ? (lastPrice - prices[count - 2]) / prices[count - 2] * 100 : 0;
 
-            // 假设你有收盘价、最高价、最低价列表
-            bool goldenCross = HasKDJGoldenCross(prices, highs, lows);
-            bool deadCross = HasKDJDeadCross(prices, highs, lows);
-
-            if (goldenCross)
-            {
-                var t = DateTime.Now.ToString("hh:mm:ss");
-                UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Green);
-            }
-            else if (deadCross)
-            {
-                var t = DateTime.Now.ToString("hh:mm:ss");
-                UpdateStatus($"*************** {t} KDJ 出现死叉信号！***************", Brushes.Red);
-            }
-
             return new StockSnapshot
             {
                 Code = codeWithSuffix,
                 Name = name,
+                OpenPrice = openPrice,
                 Prices = prices,
                 HighPrices = highs,
                 LowPrices = lows,
@@ -602,16 +623,22 @@ namespace StockTickerExtension
                 {
                     UpdateStatus($"Monitoring {snap.Code} {snap.Name}", Brushes.Blue);
                 }
+
                 UpdatePriceChart(snap);
 
                 var val = snap.ChangePercent.Value;
                 ChangePercentText.Text = snap.ChangePercent.HasValue ? $"{val:F2}%" : "--%";
                 ChangePercentText.Foreground = val > 0 ? Brushes.Red : Brushes.Green;
                 CurrentPrice.Text = snap.CurrentPrice.ToString();
+
                 UpdateProfitDisplay();
+
+                if (GetChatType() != ChartType.Intraday)
+                {
+                    CheckKdjGoldenCross(snap);
+                }
             }
         }
-
         private void UpdatePriceChart(StockSnapshot snap)
         {
             if (!_monitoring)
@@ -619,18 +646,19 @@ namespace StockTickerExtension
 
             if(GetChatType() == ChartType.Intraday)
             {
-                DrawIntradayPriceChart(snap);
+                DrawIntradayChart(snap);
             }
             else
             {
-                DrawKlinePriceChart(snap);
+                DrawKLineChart(snap);
             }
         }
 
-        private void DrawIntradayPriceChart(StockSnapshot snap)
+        private void DrawIntradayChart(StockSnapshot snap)
         {
-            if (!_monitoring)
+            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0)
                 return;
+            WpfPlotPrice.Plot.Clear();
 
             List<double> safePrices = new List<double>();
             List<double> safeAvgPrices = new List<double>();
@@ -642,8 +670,6 @@ namespace StockTickerExtension
             }
             if (safePrices.Count == 0)
                 return;
-
-            WpfPlotPrice.Plot.Clear();
 
             // 固定x轴范围为完整的交易时间范围，而不是根据数据点数量动态调整
             WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _totalMinutes - 1);
@@ -759,69 +785,275 @@ namespace StockTickerExtension
             WpfPlotPrice.Render();
         }
 
-        private void DrawKlinePriceChart(StockSnapshot snap)
+        private void DrawKLineChart1(StockSnapshot snap)
         {
-            List<double> safePrices = new List<double>();
-            List<double> safeAvgPrices = new List<double>();
-
-            for (int i = 0; i < snap.Prices.Length; i++)
-            {
-                if (!double.IsNaN(snap.Prices[i])) safePrices.Add(snap.Prices[i]);
-                if (!double.IsNaN(snap.AvgPrices[i])) safeAvgPrices.Add(snap.AvgPrices[i]);
-            }
-            if (safePrices.Count == 0)
+            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0)
                 return;
 
             WpfPlotPrice.Plot.Clear();
+            WpfPlotPrice.Plot.XAxis.ResetLayout();
+            WpfPlotPrice.Plot.YAxis2.ResetLayout();
+            WpfPlotPrice.Plot.YAxis2.Label("");
+            WpfPlotPrice.Plot.Clear();
 
-            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: safePrices.Count);
+            int count = snap.Prices.Length;
+            var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
 
-            var xs = Enumerable.Range(0, safePrices.Count).Select(i => (double)i).ToArray();
-
-            // 价格曲线
-            WpfPlotPrice.Plot.AddScatter(xs, safePrices.ToArray(), color: System.Drawing.Color.FromArgb(31, 119, 180), lineWidth: 2.0f, markerSize: 2.2f);
-
-            // 成交量（右Y轴）
-            if (snap.BuyVolumes != null && snap.SellVolumes != null)
+            var ticks = new List<double>();
+            var labels = new List<string>();
+            foreach (var x in xs)
             {
-                var safeBuy = snap.BuyVolumes.Take(safePrices.Count).Select(v => double.IsNaN(v) ? 0 : v).ToArray();
-                var safeSell = snap.SellVolumes.Take(safePrices.Count).Select(v => double.IsNaN(v) ? 0 : v).ToArray();
+                ticks.Add(x);
+                labels.Add(x % 10 == 0 ? $" {x}" : "");
+            }
+            // 设置 X 轴刻度
+            WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+            WpfPlotPrice.Plot.YLabel("Price(RMB)");
 
-                var barBuy = WpfPlotPrice.Plot.AddBar(safeBuy, xs);
-                barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
-                barBuy.YAxisIndex = 1; // 使用右Y轴
+            // 绘制K线（带上下影线的蜡烛图）
+            var opens = snap.OpenPrice;
+            var closes = snap.Prices;
+            var highs = snap.HighPrices;
+            var lows = snap.LowPrices;
 
-                var barSell = WpfPlotPrice.Plot.AddBar(safeSell, xs);
-                barSell.FillColor = System.Drawing.Color.FromArgb(100, 0, 255, 0);
-                barSell.YAxisIndex = 1;
+            // 红涨绿跌
+            var red = System.Drawing.Color.Red;
+            var green = System.Drawing.Color.Green;
+
+            const float candleWidth = 0.6f;
+
+            for (int i = 0; i < count; i++)
+            {
+                var x = xs[i];
+                var open = opens[i];
+                var close = closes[i];
+                var high = highs[i];
+                var low = lows[i];
+
+                var color = close >= open ? red : green;
+
+                // 主体
+                var bar1 = WpfPlotPrice.Plot.AddBar(new double[] { Math.Abs(close - open) }, new double[] { x });
+                bar1.FillColor = color; 
+                bar1.BorderColor = color;
+                bar1.BarWidth = candleWidth;
+                bar1.BorderLineWidth = 0; // 去掉边框
+
+                // 上下影线
+                WpfPlotPrice.Plot.AddLine(x, x, Math.Min(open, close), low, color, 1.0f);
+                WpfPlotPrice.Plot.AddLine(x, x, Math.Max(open, close), high, color, 1.0f);
             }
 
-            // 坐标轴名称
-            WpfPlotPrice.Plot.YLabel("Price(RMB)");
-            WpfPlotPrice.Plot.YAxis2.Label("Volume (Lots)");
+            // 设置Y轴范围
+            double yMin = lows.Min() * 0.995;
+            double yMax = highs.Max() * 1.005;
+            double priceRange = yMax - yMin;
+            WpfPlotPrice.Plot.SetAxisLimitsY(yMin - priceRange * 0.1, yMax + priceRange * 0.1, yAxisIndex: 0);
+            WpfPlotPrice.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
+            WpfPlotPrice.Render();
 
-            // 设置右轴显示
-            WpfPlotPrice.Plot.YAxis2.Ticks(true);
-            WpfPlotPrice.Plot.YAxis2.Color(System.Drawing.Color.Gray);
+            WpfPlotVolume.Plot.Clear();
+            WpfPlotVolume.Plot.SetAxisLimits(xMin: 0, xMax: count - 1);
+            // 设置 X 轴刻度
+            WpfPlotVolume.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+            WpfPlotVolume.Plot.YLabel("Volume (Lots)");
+
+            // 绘制成交量柱状图
+            if (snap.BuyVolumes != null && snap.SellVolumes != null)
+            {
+                var barBuy = WpfPlotVolume.Plot.AddBar(snap.BuyVolumes, xs);
+                barBuy.FillColor = red;
+                barBuy.BarWidth = 0.5; // 设置固定柱状图宽度
+                barBuy.BorderLineWidth = 0; // 去掉边框
+
+                var barSell = WpfPlotVolume.Plot.AddBar(snap.SellVolumes, xs);
+                barSell.FillColor = green;
+                barSell.BarWidth = candleWidth; // 设置固定柱状图宽度
+                barSell.BorderLineWidth = 0; // 去掉边框
+            }
 
             // 自动缩放
-            WpfPlotPrice.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
+            WpfPlotVolume.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
 
-            // ------------------ 价格轴（左Y轴）留20%空间 ------------------
-            double maxPrice = Math.Max(safePrices.DefaultIfEmpty(0).Max(), safeAvgPrices.DefaultIfEmpty(0).Max());
-            double minPrice = Math.Min(safePrices.DefaultIfEmpty(0).Min(), safeAvgPrices.DefaultIfEmpty(0).Min());
+            // 调整成交量轴范围
+            double maxVolume = Math.Max(snap.BuyVolumes.DefaultIfEmpty(0).Max(), snap.SellVolumes.DefaultIfEmpty(0).Max());
+            WpfPlotVolume.Plot.SetAxisLimitsY(0, maxVolume * 1.3); // 上限提高20%
 
-            // 上下各留出10%的空间（总共扩大20%）
-            double priceRange = maxPrice - minPrice;
-            WpfPlotPrice.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1, yAxisIndex: 0);
-
-            // 调整右侧成交量轴范围
-            double maxVolume = Math.Max(snap.BuyVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0,
-                                        snap.SellVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0);
-            WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3, yAxisIndex: 1); // 上限提高20%
-
-            WpfPlotPrice.Render();
+            WpfPlotVolume.Render();
         }
+
+        private void DrawKLineChart(StockSnapshot snap)
+        {
+            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0)
+                return;
+
+            // 清理两个图
+            WpfPlotPrice.Plot.Clear();
+            WpfPlotVolume.Plot.Clear();
+
+            // 确保成交量区可见
+            WpfPlotVolume.Visibility = Visibility.Visible;
+
+            int count = snap.Prices.Length;
+            var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
+
+            // --- 1) 绘制 K 线（使用 ScottPlot 的 Candlesticks） ---
+            var opens = snap.OpenPrice ?? Enumerable.Repeat(double.NaN, count).ToArray();
+            var closes = snap.Prices;
+            var highs = snap.HighPrices ?? Enumerable.Repeat(double.NaN, count).ToArray();
+            var lows = snap.LowPrices ?? Enumerable.Repeat(double.NaN, count).ToArray();
+
+            // 添加蜡烛图（若你的 ScottPlot 版本支持）
+            try
+            {
+                var ohlcs = new List<ScottPlot.OHLC>();
+                for (int i = 0; i < count; i++)
+                {
+                    if (!double.IsNaN(opens[i]) && !double.IsNaN(highs[i]) &&
+                        !double.IsNaN(lows[i]) && !double.IsNaN(closes[i]))
+                    {
+                        ohlcs.Add(new ScottPlot.OHLC(opens[i], highs[i], lows[i], closes[i], xs[i], 1));
+                    }
+                }
+
+                // AddCandlesticks(opens, highs, lows, closes, xs)
+                var candles = WpfPlotPrice.Plot.AddCandlesticks(ohlcs.ToArray());
+                // 美化：涨红 跌绿，和宽度
+                candles.ColorUp = System.Drawing.Color.Red;
+                candles.ColorDown = System.Drawing.Color.Green;
+//              candles.CandleWidth = 0.6f; // 0..1 相对宽度
+            }
+            catch
+            {
+                // 退回到手动绘制（以防 AddCandlesticks 不可用）
+                // 用矩形/线绘制每根蜡烛（保证实体从 open 到 close，而不是从 0 开始）
+                for (int i = 0; i < count; i++)
+                {
+                    double x = xs[i];
+                    double open = opens[i];
+                    double close = closes[i];
+                    double high = highs[i];
+                    double low = lows[i];
+
+                    if (double.IsNaN(open) || double.IsNaN(close) || double.IsNaN(high) || double.IsNaN(low))
+                        continue;
+
+                    var color = close >= open ? System.Drawing.Color.Red : System.Drawing.Color.Green;
+
+                    // 影线（上下）
+                    WpfPlotPrice.Plot.AddLine(x, x, close > open ? close : open, low, color, lineWidth: 1.0f);
+                    WpfPlotPrice.Plot.AddLine(x, x, close > open ? close : open, high, color, lineWidth: 1.0f);
+
+                    // 实体：用 AddRectangle（x - w/2, min(open,close), width, height）
+                    double w = 0.6; // candle width in x-units
+                    double left = x - w / 2.0;
+                    double bottom = Math.Min(open, close);
+                    double height = Math.Abs(close - open);
+                    // Use AddRectangle - ScottPlot has AddRectangle in recent versions
+                    try
+                    {
+                        var rect = WpfPlotPrice.Plot.AddRectangle(left, bottom, w, height);
+                        rect.Color = color;
+                        rect.BorderColor = color;
+                    }
+                    catch
+                    {
+                        // 如果没有 AddRectangle 可用，退回不绘制实体（影线至少能看）
+                    }
+                }
+            }
+
+            // X 轴对齐：使每个 candle 在整数位置（0..count-1）居中
+            double xMin = -0.5;
+            double xMax = count - 0.5;
+            WpfPlotPrice.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
+
+            // 设置 X 轴刻度（按需要，只画部分刻度，避免拥挤）
+            var ticks = new List<double>();
+            var labels = new List<string>();
+            for (int i = 0; i < count; i++)
+            {
+                if (i % Math.Max(1, count / 8) == 0) // 取约 8 个刻度
+                {
+                    ticks.Add(i);
+                    labels.Add(i.ToString());
+                }
+            }
+            if (ticks.Count > 0)
+                WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+
+            WpfPlotPrice.Plot.YLabel("Price(RMB)");
+
+            // Y 轴：给上下增加小边距，避免实体触到边
+            double yHigh = highs.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max();
+            double yLow = lows.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Min();
+            if (yHigh > yLow)
+            {
+                double margin = (yHigh - yLow) * 0.06; // 6% margin
+                WpfPlotPrice.Plot.SetAxisLimitsY(yLow - margin, yHigh + margin);
+            }
+            else
+            {
+                // fallback
+                WpfPlotPrice.Plot.AxisAuto();
+            }
+
+            // --- 2) 绘制成交量到下方 WpfPlotVolume 并对齐 X 轴 ---
+            WpfPlotVolume.Plot.Clear();
+            WpfPlotVolume.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
+
+            // 将成交量转换为“手”（如果你的数据是股数），这里除以100；若已经是手则把 /100 去掉
+            double[] volsScaled = snap.Volumes?.Select(v => v).ToArray() ?? new double[count];
+
+            // 保证 volsScaled 长度等于 count
+            if (volsScaled.Length != count)
+            {
+                var tmp = new double[count];
+                for (int i = 0; i < count && i < volsScaled.Length; i++) tmp[i] = volsScaled[i];
+                volsScaled = tmp;
+            }
+
+            // 为成交量设置颜色：用买/卖分开绘制（若有），否则按涨跌绘色
+            if (snap.BuyVolumes != null && snap.SellVolumes != null && snap.BuyVolumes.Length == count && snap.SellVolumes.Length == count)
+            {
+                // 使用 buy/sell 绘制两组柱
+                var buyScaled = snap.BuyVolumes.Select(v => v).ToArray();
+                var sellScaled = snap.SellVolumes.Select(v =>v).ToArray();
+
+                var barBuy = WpfPlotVolume.Plot.AddBar(buyScaled, xs);
+                barBuy.FillColor = System.Drawing.Color.Red;
+                barBuy.BarWidth = 0.8;
+                barBuy.BorderLineWidth = 0;
+
+                var barSell = WpfPlotVolume.Plot.AddBar(sellScaled, xs);
+                barSell.FillColor = System.Drawing.Color.Green;
+                barSell.BarWidth = 0.8;
+                barSell.BorderLineWidth = 0;
+            }
+            else
+            {
+                // 单组成交量，颜色依据当天涨跌（或全部灰色）
+                var bars = WpfPlotVolume.Plot.AddBar(volsScaled, xs);
+                bars.FillColor = System.Drawing.Color.Gray;
+                bars.BarWidth = 0.8;
+                bars.BorderLineWidth = 0;
+            }
+
+            WpfPlotVolume.Plot.YLabel("Volume (Lots)");
+
+            // 给成交量 Y 轴加一点上边距
+            double maxVol = volsScaled.DefaultIfEmpty(0).Max();
+            WpfPlotVolume.Plot.SetAxisLimitsY(0, Math.Max(1e-6, maxVol * 1.2)); // 提高 20%
+
+            // 让两个图的 X 轴范围一致（关键）
+            WpfPlotPrice.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
+            WpfPlotVolume.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
+
+            // 最后渲染
+            WpfPlotPrice.Render();
+            WpfPlotVolume.Render();
+        }
+
 
         private void UpdateProfitDisplay()
         {
@@ -871,19 +1103,8 @@ namespace StockTickerExtension
                 {
                     // 每分钟检测一次
                     await Task.Delay(TimeSpan.FromMinutes(5), token);
-
                     var kSnap = await FetchKSnapshotAsync(NormalizeCode(code), "Daily K");
-//                     if (kSnap == null || kSnap.Prices == null || kSnap.Prices.Length < 10)
-//                         continue;
-
-//                     bool isGolden = HasKDJGoldenCross(kSnap.Prices, kSnap.HighPrices, kSnap.LowPrices);
-//                     bool isDeath = HasKDJDeadCross(kSnap.Prices, kSnap.HighPrices, kSnap.LowPrices);
-//                     var t = DateTime.Now.ToString("hh:mm:ss");
-// 
-//                     if (isGolden)
-//                         UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Green);
-//                     else if (isDeath)
-//                         UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Red);
+                    CheckKdjGoldenCross(kSnap);
                 }
                 catch (TaskCanceledException)
                 {
@@ -893,6 +1114,21 @@ namespace StockTickerExtension
                 {
                     UpdateStatus("KDJ check error: " + ex.Message, Brushes.Red);
                 }
+            }
+        }
+
+        private void CheckKdjGoldenCross(StockSnapshot snap)
+        {
+            if (snap != null && snap.Prices != null && snap.Prices.Length >= 10)
+            {
+                bool isGolden = HasKDJGoldenCross(snap.Prices, snap.HighPrices, snap.LowPrices);
+                bool isDeath = HasKDJDeadCross(snap.Prices, snap.HighPrices, snap.LowPrices);
+                var t = DateTime.Now.ToString("hh:mm:ss");
+
+                if (isGolden)
+                    UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Green);
+                else if (isDeath)
+                    UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Red);
             }
         }
 
