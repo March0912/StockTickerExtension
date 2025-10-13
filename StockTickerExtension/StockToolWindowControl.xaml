@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:scottplt="clr-namespace:ScottPlot;assembly=ScottPlot.WPF"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
-             MinHeight="350" MaxWidth="1800" 
              HorizontalAlignment="Left"
              VerticalAlignment="Top">
 
@@ -16,7 +15,8 @@
         <!-- 主布局：左对齐并水平填满 -->
         <Grid Margin="0"
               HorizontalAlignment="Stretch"
-              VerticalAlignment="Top">
+              VerticalAlignment="Top"
+              Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
 
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -59,13 +59,14 @@
             <!-- 第三行：图表区域 -->
             <Grid Grid.Row="2" Margin="3">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="2*"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="1*"/>
+                    <!-- 主图：价格/K线 -->
+                    <RowDefinition Height="3*"/>
+                    <!-- 副图：成交量 -->
+                    <RowDefinition Height="1.5*"/>
                 </Grid.RowDefinitions>
-                <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" HorizontalAlignment="Stretch" Grid.Row="0" Margin="0,0,0,0"/>
+                <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" Grid.Row="0" HorizontalAlignment="Stretch" Margin="0,0,20,6"/>
+                <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="240" Grid.Row="2" HorizontalAlignment="Stretch" Margin="0,0,20,6" />
             </Grid>
-
             <!-- 底部提示 -->
             <TextBlock Grid.Row="3" Text="Hint: Supports codes like 000001 / 300750 / 601318 | Red: Mainly buying, Green: Mainly selling"
                        FontSize="11" Foreground="Gray" Margin="3"/>
