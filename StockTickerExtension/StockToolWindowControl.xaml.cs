@@ -236,6 +236,14 @@ namespace StockTickerExtension
             // ------------------ 检查交易时间 ------------------
             if (period == "Intraday" && !IsTradingTime(DateTime.Now))
             {
+                // 收盘后（15:00之后）允许启动，并显示当日完整分时数据
+                var now = DateTime.Now.TimeOfDay;
+                var closeTime = new TimeSpan(15, 0, 0);
+                if (now > closeTime)
+                {
+                    return true;
+                }
+
                 UpdateStatus("Currently outside trading hours, monitoring cannot start", Brushes.Red);
                 return false;
             }
