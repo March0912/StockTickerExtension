@@ -55,6 +55,11 @@ namespace StockTickerExtension
         /// 涨跌幅
         /// </summary>
         public double? ChangePercent { get; set; }
+
+		// 预计算的均线（若可用，则用于绘图，确保从 x=0 开始）
+		public double[] MA5 { get; set; }
+		public double[] MA10 { get; set; }
+		public double[] MA20 { get; set; }
     };
 
     public enum ChartType
@@ -395,7 +400,7 @@ namespace StockTickerExtension
             }
         }
 
-        private async Task<StockSnapshot> FetchKSnapshotAsync(string codeWithSuffix, string period)
+		private async Task<StockSnapshot> FetchKSnapshotAsync(string codeWithSuffix, string period)
         {
             if(period == "Intraday")
                return await FetchSnapshotAsync(codeWithSuffix);
@@ -405,9 +410,9 @@ namespace StockTickerExtension
 
             var kType = PeriodToKType(period);
 
-            string begStr;
-            if(period == "Daily K")
-                begStr = _currentDate.AddDays(-200).ToString("yyyyMMdd");
+			string begStr;
+			if(period == "Daily K")
+				begStr = _currentDate.AddDays(-240).ToString("yyyyMMdd"); // 多取 40 天以支持 MA 引导
             else if (period == "Weekly K")
                 begStr = _currentDate.AddDays(-120*3).ToString("yyyyMMdd");
             else if (period == "Monthly K")
@@ -435,16 +440,16 @@ namespace StockTickerExtension
             var klines = jobj["data"]["klines"].ToObject<string[]>();
             if (klines.Length == 0) return null;
 
-            var name = jobj["data"]["name"]?.ToString();
-            int count = klines.Length;
-            var prices = new double[count];
+			var name = jobj["data"]["name"]?.ToString();
+			int count = klines.Length;
+			var prices = new double[count];
             var avgPrices = new double[count];
             var vols = new double[count];
             var highs = new double[count];
             var lows = new double[count];
             var openPrice = new double[count];
 
-            for (int i = 0; i < count; i++)
+			for (int i = 0; i < count; i++)
             {
                 var parts = klines[i].Split(',');
                 double open = double.Parse(parts[1]);
@@ -461,8 +466,13 @@ namespace StockTickerExtension
                 vols[i] = vol;
             }
 
-            double lastPrice = prices.Last();
-            double changePercent = (count >= 2) ? (lastPrice - prices[count - 2]) / prices[count - 2] * 100 : 0;
+			double lastPrice = prices.Last();
+			double changePercent = (count >= 2) ? (lastPrice - prices[count - 2]) / prices[count - 2] * 100 : 0;
+
+			// 计算严格窗口的全序列均线
+			double[] ma5full = ComputeExactWindowSMA(prices, 5);
+			double[] ma10full = ComputeExactWindowSMA(prices, 10);
+			double[] ma20full = ComputeExactWindowSMA(prices, 20);
 
             return new StockSnapshot
             {
@@ -477,7 +487,10 @@ namespace StockTickerExtension
                 BuyVolumes = vols.Select(v => v * 0.5).ToArray(),
                 SellVolumes = vols.Select(v => v * 0.5).ToArray(),
                 CurrentPrice = lastPrice,
-                ChangePercent = changePercent
+				ChangePercent = changePercent,
+				MA5 = ma5full,
+				MA10 = ma10full,
+				MA20 = ma20full
             };
         }
 
@@ -897,7 +910,7 @@ namespace StockTickerExtension
             int count = snap.Prices.Length;
             var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
 
-            // --- 1) 绘制 K 线（使用 ScottPlot 的 Candlesticks） ---
+			// --- 1) 绘制 K 线（使用 ScottPlot 的 Candlesticks） ---
             var opens = snap.OpenPrice ?? Enumerable.Repeat(double.NaN, count).ToArray();
             var closes = snap.Prices;
             var highs = snap.HighPrices ?? Enumerable.Repeat(double.NaN, count).ToArray();
@@ -982,11 +995,85 @@ namespace StockTickerExtension
             if (ticks.Count > 0)
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
-            WpfPlotPrice.Plot.YLabel("Price(RMB)");
+			WpfPlotPrice.Plot.YLabel("Price(RMB)");
 
-            // Y 轴：给上下增加小边距，避免实体触到边
-            double yHigh = highs.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max();
-            double yLow = lows.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Min();
+			// --- 1.1) 计算并叠加 MA5 / MA10 / MA20 ---
+			// 优先使用预计算的严格窗口均线；若为空则退回本地计算
+			var ma5 = snap.MA5 ?? ComputeSimpleMovingAverage(closes, 5);
+			var ma10 = snap.MA10 ?? ComputeSimpleMovingAverage(closes, 10);
+			var ma20 = snap.MA20 ?? ComputeSimpleMovingAverage(closes, 20);
+
+			// 过滤 NaN，仅绘制有效点，避免 ScottPlot 因 NaN 抛异常
+			{
+				var xList = new List<double>();
+				var yList = new List<double>();
+				int n5 = Math.Min(xs.Length, ma5.Length);
+				int firstIdx = -1;
+				double firstVal = double.NaN;
+				for (int i = 0; i < n5; i++)
+				{
+					if (!double.IsNaN(ma5[i])) { firstIdx = i; firstVal = ma5[i]; break; }
+				}
+				if (firstIdx >= 0)
+				{
+					for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+					for (int i = firstIdx; i < n5; i++) { if (!double.IsNaN(ma5[i])) { xList.Add(xs[i]); yList.Add(ma5[i]); } }
+				}
+				var xv = xList.ToArray(); var yv = yList.ToArray();
+				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Purple, lineWidth: 1.8f, markerSize: 0f, label: "MA5");
+			}
+			{
+				var xList = new List<double>();
+				var yList = new List<double>();
+				int n10 = Math.Min(xs.Length, ma10.Length);
+				int firstIdx = -1;
+				double firstVal = double.NaN;
+				for (int i = 0; i < n10; i++)
+				{
+					if (!double.IsNaN(ma10[i])) { firstIdx = i; firstVal = ma10[i]; break; }
+				}
+				if (firstIdx >= 0)
+				{
+					for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+					for (int i = firstIdx; i < n10; i++) { if (!double.IsNaN(ma10[i])) { xList.Add(xs[i]); yList.Add(ma10[i]); } }
+				}
+				var xv = xList.ToArray(); var yv = yList.ToArray();
+				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Gold, lineWidth: 1.8f, markerSize: 0f, label: "MA10");
+			}
+			{
+				var xList = new List<double>();
+				var yList = new List<double>();
+				int n20 = Math.Min(xs.Length, ma20.Length);
+				int firstIdx = -1;
+				double firstVal = double.NaN;
+				for (int i = 0; i < n20; i++)
+				{
+					if (!double.IsNaN(ma20[i])) { firstIdx = i; firstVal = ma20[i]; break; }
+				}
+				if (firstIdx >= 0)
+				{
+					for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+					for (int i = firstIdx; i < n20; i++) { if (!double.IsNaN(ma20[i])) { xList.Add(xs[i]); yList.Add(ma20[i]); } }
+				}
+				var xv = xList.ToArray(); var yv = yList.ToArray();
+				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Blue, lineWidth: 1.8f, markerSize: 0f, label: "MA20");
+			}
+
+			// Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值
+			double yHigh = new[]
+			{
+				highs.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max()
+			}.Max();
+			double yLow = new[]
+			{
+				lows.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Min(),
+				ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+				ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min()
+			}.Min();
             if (yHigh > yLow)
             {
                 double margin = (yHigh - yLow) * 0.06; // 6% margin
@@ -1080,6 +1167,65 @@ namespace StockTickerExtension
                 StatusText.Foreground = color ?? Brushes.Gray;
             }));
         }
+
+		private static double[] ComputeSimpleMovingAverage(double[] source, int period)
+		{
+			if (source == null || source.Length == 0 || period <= 1)
+				return source?.ToArray() ?? Array.Empty<double>();
+
+			int n = source.Length;
+			double[] result = new double[n];
+			double windowSum = 0.0;
+			var window = new System.Collections.Generic.Queue<double>(period);
+
+			for (int i = 0; i < n; i++)
+			{
+				double v = source[i];
+				if (double.IsNaN(v))
+				{
+					result[i] = (i > 0) ? result[i - 1] : double.NaN;
+					continue;
+				}
+
+				window.Enqueue(v);
+				windowSum += v;
+				if (window.Count > period)
+					windowSum -= window.Dequeue();
+
+				int denom = Math.Min(i + 1, period);
+				result[i] = windowSum / denom;
+			}
+
+			return result;
+		}
+
+		private static double[] ComputeExactWindowSMA(double[] source, int period)
+		{
+			if (source == null || source.Length == 0 || period <= 0)
+				return source?.ToArray() ?? Array.Empty<double>();
+
+			int n = source.Length;
+			double[] result = new double[n];
+			for (int i = 0; i < n; i++) result[i] = double.NaN;
+
+			double windowSum = 0.0;
+			int start = 0;
+			for (int i = 0; i < n; i++)
+			{
+				double v = source[i];
+				if (double.IsNaN(v)) { start = i + 1; windowSum = 0; continue; }
+				windowSum += v;
+				if (i - start + 1 > period)
+				{
+					windowSum -= source[start];
+					start++;
+				}
+				if (i - start + 1 == period)
+					result[i] = windowSum / period;
+			}
+
+			return result;
+		}
         private DateTime GetCurrentDate()
         {
             string s = DatePickerControl.Text;
