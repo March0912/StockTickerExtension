@@ -60,6 +60,8 @@ namespace StockTickerExtension
 		public double[] MA5 { get; set; }
 		public double[] MA10 { get; set; }
 		public double[] MA20 { get; set; }
+		public double[] MA30 { get; set; }
+		public double[] MA60 { get; set; }
     };
 
     public enum ChartType
@@ -307,7 +309,7 @@ namespace StockTickerExtension
 
             var code = CodeTextBox.Text?.Trim();
             _cts = new CancellationTokenSource();
-            _ =Task.Run(() => FetchLoopAsync(code, period, _cts.Token));
+            _ =Task.Run(() => MonitorLoopAsync(code, period, _cts.Token));
 
             // ✅ 如果是分时图，则同时启动金叉监控线程
             if (period == "Intraday")
@@ -371,7 +373,7 @@ namespace StockTickerExtension
             return kType;
         }
 
-        private async Task FetchLoopAsync(string code, string period, CancellationToken token)
+        private async Task MonitorLoopAsync(string code, string period, CancellationToken token)
         {
             if (!_monitoring)
                 return;
@@ -474,6 +476,8 @@ namespace StockTickerExtension
 			double[] ma5full = ComputeExactWindowSMA(prices, 5);
 			double[] ma10full = ComputeExactWindowSMA(prices, 10);
 			double[] ma20full = ComputeExactWindowSMA(prices, 20);
+			double[] ma30full = ComputeExactWindowSMA(prices, 30);
+			double[] ma60full = ComputeExactWindowSMA(prices, 60);
 
             return new StockSnapshot
             {
@@ -491,7 +495,9 @@ namespace StockTickerExtension
 				ChangePercent = changePercent,
 				MA5 = ma5full,
 				MA10 = ma10full,
-				MA20 = ma20full
+				MA20 = ma20full,
+				MA30 = ma30full,
+				MA60 = ma60full
             };
         }
 
@@ -744,13 +750,13 @@ namespace StockTickerExtension
                 }
 
                 var barBuy = WpfPlotPrice.Plot.AddBar(fullBuyVolumes, xs);
-                barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
+                barBuy.FillColor = System.Drawing.Color.Red;
                 barBuy.YAxisIndex = 1; // 使用右Y轴
                 barBuy.BarWidth = 0.5; // 设置固定柱状图宽度
                 barBuy.BorderLineWidth = 0; // 去掉边框
 
                 var barSell = WpfPlotPrice.Plot.AddBar(fullSellVolumes, xs);
-                barSell.FillColor = System.Drawing.Color.FromArgb(100, 0, 255, 0);
+                barSell.FillColor = System.Drawing.Color.Green;
                 barSell.YAxisIndex = 1;
                 barSell.BarWidth = 0.5; // 设置固定柱状图宽度
                 barSell.BorderLineWidth = 0; // 去掉边框
@@ -804,103 +810,6 @@ namespace StockTickerExtension
             WpfPlotPrice.Render();
         }
 
-        private void DrawKLineChart1(StockSnapshot snap)
-        {
-            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0)
-                return;
-
-            WpfPlotPrice.Plot.Clear();
-            WpfPlotPrice.Plot.XAxis.ResetLayout();
-            WpfPlotPrice.Plot.YAxis2.ResetLayout();
-            WpfPlotPrice.Plot.YAxis2.Label("");
-            WpfPlotPrice.Plot.Clear();
-
-            int count = snap.Prices.Length;
-            var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
-
-            var ticks = new List<double>();
-            var labels = new List<string>();
-            foreach (var x in xs)
-            {
-                ticks.Add(x);
-                labels.Add(x % 10 == 0 ? $" {x}" : "");
-            }
-            // 设置 X 轴刻度
-            WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
-            WpfPlotPrice.Plot.YLabel("Price(RMB)");
-
-            // 绘制K线（带上下影线的蜡烛图）
-            var opens = snap.OpenPrice;
-            var closes = snap.Prices;
-            var highs = snap.HighPrices;
-            var lows = snap.LowPrices;
-
-            // 红涨绿跌
-            var red = System.Drawing.Color.Red;
-            var green = System.Drawing.Color.Green;
-
-            const float candleWidth = 0.6f;
-
-            for (int i = 0; i < count; i++)
-            {
-                var x = xs[i];
-                var open = opens[i];
-                var close = closes[i];
-                var high = highs[i];
-                var low = lows[i];
-
-                var color = close >= open ? red : green;
-
-                // 主体
-                var bar1 = WpfPlotPrice.Plot.AddBar(new double[] { Math.Abs(close - open) }, new double[] { x });
-                bar1.FillColor = color; 
-                bar1.BorderColor = color;
-                bar1.BarWidth = candleWidth;
-                bar1.BorderLineWidth = 0; // 去掉边框
-
-                // 上下影线
-                WpfPlotPrice.Plot.AddLine(x, x, Math.Min(open, close), low, color, 1.0f);
-                WpfPlotPrice.Plot.AddLine(x, x, Math.Max(open, close), high, color, 1.0f);
-            }
-
-            // 设置Y轴范围
-            double yMin = lows.Min() * 0.995;
-            double yMax = highs.Max() * 1.005;
-            double priceRange = yMax - yMin;
-            WpfPlotPrice.Plot.SetAxisLimitsY(yMin - priceRange * 0.1, yMax + priceRange * 0.1, yAxisIndex: 0);
-            WpfPlotPrice.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
-            WpfPlotPrice.Render();
-
-            WpfPlotVolume.Plot.Clear();
-            WpfPlotVolume.Plot.SetAxisLimits(xMin: 0, xMax: count - 1);
-            // 设置 X 轴刻度
-            WpfPlotVolume.Plot.XTicks(ticks.ToArray(), labels.ToArray());
-            WpfPlotVolume.Plot.YLabel("Volume (Lots)");
-
-            // 绘制成交量柱状图
-            if (snap.BuyVolumes != null && snap.SellVolumes != null)
-            {
-                var barBuy = WpfPlotVolume.Plot.AddBar(snap.BuyVolumes, xs);
-                barBuy.FillColor = red;
-                barBuy.BarWidth = 0.5; // 设置固定柱状图宽度
-                barBuy.BorderLineWidth = 0; // 去掉边框
-
-                var barSell = WpfPlotVolume.Plot.AddBar(snap.SellVolumes, xs);
-                barSell.FillColor = green;
-                barSell.BarWidth = candleWidth; // 设置固定柱状图宽度
-                barSell.BorderLineWidth = 0; // 去掉边框
-            }
-
-            // 自动缩放
-            WpfPlotVolume.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
-
-            // 调整成交量轴范围
-            double maxVolume = Math.Max(snap.BuyVolumes.DefaultIfEmpty(0).Max(), snap.SellVolumes.DefaultIfEmpty(0).Max());
-            WpfPlotVolume.Plot.SetAxisLimitsY(0, maxVolume * 1.3); // 上限提高20%
-
-            WpfPlotVolume.Render();
-        }
-
         private void DrawKLineChart(StockSnapshot snap)
         {
             if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0)
@@ -908,6 +817,7 @@ namespace StockTickerExtension
 
             // 清理两个图
             WpfPlotPrice.Plot.Clear();
+            WpfPlotPrice.Plot.YAxis2.Ticks(false);
             WpfPlotVolume.Plot.Clear();
 
             // 确保成交量区可见
@@ -960,8 +870,8 @@ namespace StockTickerExtension
                     var color = close >= open ? System.Drawing.Color.Red : System.Drawing.Color.Green;
 
                     // 影线（上下）
-                    WpfPlotPrice.Plot.AddLine(x, x, close > open ? close : open, low, color, lineWidth: 1.0f);
-                    WpfPlotPrice.Plot.AddLine(x, x, close > open ? close : open, high, color, lineWidth: 1.0f);
+                    WpfPlotPrice.Plot.AddLine(x, x, close > open ? close : open, low, color, lineWidth: 0.6f);
+                    WpfPlotPrice.Plot.AddLine(x, x, close > open ? close : open, high, color, lineWidth: 0.6f);
 
                     // 实体：用 AddRectangle（x - w/2, min(open,close), width, height）
                     double w = 0.6; // candle width in x-units
@@ -1006,11 +916,9 @@ namespace StockTickerExtension
 			// --- 1.1) 计算并叠加 MA5 / MA10 / MA20 ---
 			// 优先使用预计算的严格窗口均线；若为空则退回本地计算
 			var ma5 = snap.MA5 ?? ComputeSimpleMovingAverage(closes, 5);
-			var ma10 = snap.MA10 ?? ComputeSimpleMovingAverage(closes, 10);
-			var ma20 = snap.MA20 ?? ComputeSimpleMovingAverage(closes, 20);
-
-			// 过滤 NaN，仅绘制有效点，避免 ScottPlot 因 NaN 抛异常
-			{
+            // 过滤 NaN，仅绘制有效点，避免 ScottPlot 因 NaN 抛异常
+            if (MA5.IsChecked == true)
+            {
 				var xList = new List<double>();
 				var yList = new List<double>();
 				int n5 = Math.Min(xs.Length, ma5.Length);
@@ -1026,10 +934,13 @@ namespace StockTickerExtension
 					for (int i = firstIdx; i < n5; i++) { if (!double.IsNaN(ma5[i])) { xList.Add(xs[i]); yList.Add(ma5[i]); } }
 				}
 				var xv = xList.ToArray(); var yv = yList.ToArray();
-				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Purple, lineWidth: 1.8f, markerSize: 0f, label: "MA5");
+				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Black, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
 			}
-			{
-				var xList = new List<double>();
+
+            var ma10 = snap.MA10 ?? ComputeSimpleMovingAverage(closes, 10);
+            if (MA10.IsChecked == true)
+            {
+                var xList = new List<double>();
 				var yList = new List<double>();
 				int n10 = Math.Min(xs.Length, ma10.Length);
 				int firstIdx = -1;
@@ -1044,10 +955,13 @@ namespace StockTickerExtension
 					for (int i = firstIdx; i < n10; i++) { if (!double.IsNaN(ma10[i])) { xList.Add(xs[i]); yList.Add(ma10[i]); } }
 				}
 				var xv = xList.ToArray(); var yv = yList.ToArray();
-				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Gold, lineWidth: 1.8f, markerSize: 0f, label: "MA10");
+				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Orange, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
 			}
-			{
-				var xList = new List<double>();
+
+            var ma20 = snap.MA20 ?? ComputeSimpleMovingAverage(closes, 20);
+            if(MA20.IsChecked == true)
+            {
+                var xList = new List<double>();
 				var yList = new List<double>();
 				int n20 = Math.Min(xs.Length, ma20.Length);
 				int firstIdx = -1;
@@ -1062,23 +976,69 @@ namespace StockTickerExtension
 					for (int i = firstIdx; i < n20; i++) { if (!double.IsNaN(ma20[i])) { xList.Add(xs[i]); yList.Add(ma20[i]); } }
 				}
 				var xv = xList.ToArray(); var yv = yList.ToArray();
-				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Blue, lineWidth: 1.8f, markerSize: 0f, label: "MA20");
+				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.MediumVioletRed, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
 			}
 
-			// Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值
-			double yHigh = new[]
+            var ma30 = snap.MA30 ?? ComputeSimpleMovingAverage(closes, 30);
+            if (MA30.IsChecked == true)
+            {
+                var xList = new List<double>();
+                var yList = new List<double>();
+                int n30 = Math.Min(xs.Length, ma30.Length);
+                int firstIdx = -1;
+                double firstVal = double.NaN;
+                for (int i = 0; i < n30; i++)
+                {
+                    if (!double.IsNaN(ma30[i])) { firstIdx = i; firstVal = ma30[i]; break; }
+                }
+                if (firstIdx >= 0)
+                {
+                    for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+                    for (int i = firstIdx; i < n30; i++) { if (!double.IsNaN(ma30[i])) { xList.Add(xs[i]); yList.Add(ma30[i]); } }
+                }
+                var xv = xList.ToArray(); var yv = yList.ToArray();
+                if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Green, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
+            }
+
+            var ma60 = snap.MA60 ?? ComputeSimpleMovingAverage(closes, 60);
+            if (MA60.IsChecked == true)
+            {
+                var xList = new List<double>();
+                var yList = new List<double>();
+                int n60 = Math.Min(xs.Length, ma60.Length);
+                int firstIdx = -1;
+                double firstVal = double.NaN;
+                for (int i = 0; i < n60; i++)
+                {
+                    if (!double.IsNaN(ma60[i])) { firstIdx = i; firstVal = ma60[i]; break; }
+                }
+                if (firstIdx >= 0)
+                {
+                    for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+                    for (int i = firstIdx; i < n60; i++) { if (!double.IsNaN(ma60[i])) { xList.Add(xs[i]); yList.Add(ma60[i]); } }
+                }
+                var xv = xList.ToArray(); var yv = yList.ToArray();
+                if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Gray, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
+            }
+
+            // Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值
+            double yHigh = new[]
 			{
 				highs.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
 				ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
 				ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max()
+				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max()
 			}.Max();
 			double yLow = new[]
 			{
 				lows.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Min(),
 				ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
 				ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
-				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min()
+				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+				ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+				ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min()
 			}.Min();
             if (yHigh > yLow)
             {
@@ -1115,12 +1075,12 @@ namespace StockTickerExtension
 
                 var barBuy = WpfPlotVolume.Plot.AddBar(buyScaled, xs);
                 barBuy.FillColor = System.Drawing.Color.Red;
-                barBuy.BarWidth = 0.8;
+                barBuy.BarWidth = 0.5;
                 barBuy.BorderLineWidth = 0;
 
                 var barSell = WpfPlotVolume.Plot.AddBar(sellScaled, xs);
                 barSell.FillColor = System.Drawing.Color.Green;
-                barSell.BarWidth = 0.8;
+                barSell.BarWidth = 0.5;
                 barSell.BorderLineWidth = 0;
             }
             else
@@ -1128,7 +1088,7 @@ namespace StockTickerExtension
                 // 单组成交量，颜色依据当天涨跌（或全部灰色）
                 var bars = WpfPlotVolume.Plot.AddBar(volsScaled, xs);
                 bars.FillColor = System.Drawing.Color.Gray;
-                bars.BarWidth = 0.8;
+                bars.BarWidth = 0.5;
                 bars.BorderLineWidth = 0;
             }
 
