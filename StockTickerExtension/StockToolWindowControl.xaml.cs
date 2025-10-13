@@ -1,11 +1,8 @@
-﻿using Microsoft.VisualStudio.OLE.Interop;
-using Microsoft.VisualStudio.Threading;
+﻿using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Data;
-using System.IO.Ports;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -13,9 +10,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Media3D;
 using System.Windows.Threading;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.TrackBar;
 
 namespace StockTickerExtension
 {
@@ -113,11 +108,13 @@ namespace StockTickerExtension
                     DatePickerControl.IsEnabled = false;
                     PeriodComboBox.SelectedItem = DateTime.Today;
                     WpfPlotPrice.Height = PriceChatMinHeight;
+                    WpfPlotVolume.Visibility = Visibility.Hidden;
                 }
                 else
                 {
                     DatePickerControl.IsEnabled = true;
                     WpfPlotPrice.Height = PriceChatMaxHeight;
+                    WpfPlotVolume.Visibility = Visibility.Visible;
                 }
             }
             if (_monitoring)
@@ -191,6 +188,8 @@ namespace StockTickerExtension
             // 设置 X 轴刻度
             if (ticks.Count > 0)
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+
+            WpfPlotVolume.Visibility = Visibility.Hidden;
         }
         private List<string> BuildTradingMinutes(DateTime date)
         {
