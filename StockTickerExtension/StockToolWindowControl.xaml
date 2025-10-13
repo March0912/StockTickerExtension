@@ -21,6 +21,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -55,9 +56,15 @@
                 <TextBlock x:Name="PositionProfitText" Text="Unrealized P/L: --" Margin="12,0"/>
                 <TextBlock x:Name="TodayProfitText" Text="Today's P/L: --" Margin="12,0"/>
             </StackPanel>
-
+            <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="2" HorizontalAlignment="Left">
+                <CheckBox x:Name="MA5" Content="MA5" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Black" />
+                <CheckBox x:Name="MA10" Content="MA10" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Orange"/>
+                <CheckBox x:Name="MA20" Content="MA20" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="MediumVioletRed"/>
+                <CheckBox x:Name="MA30" Content="MA30" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Green"/>
+                <CheckBox x:Name="MA60" Content="MA60" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Gray"/>
+            </StackPanel>
             <!-- 第三行：图表区域 -->
-            <Grid Grid.Row="2" Margin="3">
+            <Grid Grid.Row="3" Margin="3">
                 <Grid.RowDefinitions>
                     <!-- 主图：价格/K线 -->
                     <RowDefinition Height="3*"/>
