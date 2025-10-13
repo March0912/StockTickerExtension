@@ -327,39 +327,89 @@ namespace StockTickerExtension
 
         private void UpdatePriceChart(double[] prices, double[] avgPrices, double[] buyVolumes, double[] sellVolumes)
         {
-            List<double> safePrices = new List<double>();
-            List<double> safeAvgPrices = new List<double>();
+            WpfPlotPrice.Plot.Clear();
+
+            // 创建所有时间点的索引数组（固定范围：0 到 _totalMinutes-1）
+            var allIndexes = Enumerable.Range(0, _totalMinutes).Select(i => (double)i).ToArray();
+
+            // 过滤出有效价格数据及其对应的索引
+            var validPriceIndexes = new List<double>();
+            var validPrices = new List<double>();
+            var validAvgPrices = new List<double>();
 
             for (int i = 0; i < prices.Length; i++)
             {
-                if (!double.IsNaN(prices[i])) safePrices.Add(prices[i]);
-                if (!double.IsNaN(avgPrices[i])) safeAvgPrices.Add(avgPrices[i]);
+                if (!double.IsNaN(prices[i]))
+                {
+                    validPriceIndexes.Add(i);
+                    validPrices.Add(prices[i]);
+                    if (!double.IsNaN(avgPrices[i]))
+                        validAvgPrices.Add(avgPrices[i]);
+                    else
+                        validAvgPrices.Add(double.NaN);
+                }
             }
 
-            WpfPlotPrice.Plot.Clear();
+            // 价格曲线 - 使用原始索引位置
+            if (validPrices.Count > 0)
+            {
+                WpfPlotPrice.Plot.AddScatter(validPriceIndexes.ToArray(), validPrices.ToArray(), 
+                    color: System.Drawing.Color.FromArgb(31, 119, 180), lineWidth: 2.0f, markerSize: 2.2f);
+                
+                // 过滤出有效的平均价格数据
+                var validAvgIndexes = new List<double>();
+                var filteredAvgPrices = new List<double>();
+                for (int i = 0; i < validAvgPrices.Count; i++)
+                {
+                    if (!double.IsNaN(validAvgPrices[i]))
+                    {
+                        validAvgIndexes.Add(validPriceIndexes[i]);
+                        filteredAvgPrices.Add(validAvgPrices[i]);
+                    }
+                }
+                
+                if (filteredAvgPrices.Count > 0)
+                {
+                    WpfPlotPrice.Plot.AddScatter(validAvgIndexes.ToArray(), filteredAvgPrices.ToArray(), 
+                        color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 2.0f, markerSize: 2.2f);
+                }
+            }
 
-            var xs = Enumerable.Range(0, safePrices.Count).Select(i => (double)i).ToArray();
-
-            // 价格曲线
-            WpfPlotPrice.Plot.AddScatter(xs, safePrices.ToArray(), color: System.Drawing.Color.FromArgb(31, 119, 180), lineWidth: 2.0f, markerSize: 2.2f);
-            WpfPlotPrice.Plot.AddScatter(xs, safeAvgPrices.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 2.0f, markerSize: 2.2f);
-
-            // 成交量（右Y轴）
+            // 成交量柱状图 - 使用原始索引位置，固定宽度
             if (buyVolumes != null && sellVolumes != null)
             {
-                var safeBuy = buyVolumes.Take(safePrices.Count).ToArray();
-                var safeSell = sellVolumes.Take(safePrices.Count).ToArray();
+                // 过滤出有成交量的时间点
+                var volumeIndexes = new List<double>();
+                var buyVols = new List<double>();
+                var sellVols = new List<double>();
 
-                var barBuy = WpfPlotPrice.Plot.AddBar(safeBuy, xs);
-                barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
-                barBuy.YAxisIndex = 1; // 使用右Y轴
+                for (int i = 0; i < buyVolumes.Length; i++)
+                {
+                    if (buyVolumes[i] > 0 || sellVolumes[i] > 0)
+                    {
+                        volumeIndexes.Add(i);
+                        buyVols.Add(buyVolumes[i]);
+                        sellVols.Add(sellVolumes[i]);
+                    }
+                }
 
-                var barSell = WpfPlotPrice.Plot.AddBar(safeSell, xs);
-                barSell.FillColor = System.Drawing.Color.FromArgb(100, 0, 255, 0);
-                barSell.YAxisIndex = 1;
+                if (volumeIndexes.Count > 0)
+                {
+                    var barBuy = WpfPlotPrice.Plot.AddBar(buyVols.ToArray(), volumeIndexes.ToArray());
+                    barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
+                    barBuy.YAxisIndex = 1; // 使用右Y轴
+                    barBuy.BarWidth = 0.5; // 设置固定柱状图宽度
+                    barBuy.BorderLineWidth = 0; // 去掉边框
+
+                    var barSell = WpfPlotPrice.Plot.AddBar(sellVols.ToArray(), volumeIndexes.ToArray());
+                    barSell.FillColor = System.Drawing.Color.FromArgb(100, 0, 255, 0);
+                    barSell.YAxisIndex = 1;
+                    barSell.BarWidth = 0.5; // 设置固定柱状图宽度
+                    barSell.BorderLineWidth = 0; // 去掉边框
+                }
             }
 
-            // 设置坐标轴
+            // 设置坐标轴标签（保持固定）
             var today = DateTime.Today.ToString("yyyy-MM-dd ");
             var labelTimes = new[] { today + "09:30", today + "10:00", today + "10:30", today + "11:00", today + "11:30", today + "13:30", today + "14:00", today + "14:30", today + "15:00" };
             var ticks = new List<double>();
@@ -384,21 +434,27 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.YAxis2.Ticks(true);
             WpfPlotPrice.Plot.YAxis2.Color(System.Drawing.Color.Gray);
 
-            // 自动缩放
-            WpfPlotPrice.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
+            // 设置固定的X轴范围（始终显示完整的交易时间）
+            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _totalMinutes - 1);
 
             // ------------------ 价格轴（左Y轴）留20%空间 ------------------
-            double maxPrice = Math.Max(safePrices.DefaultIfEmpty(0).Max(), safeAvgPrices.DefaultIfEmpty(0).Max());
-            double minPrice = Math.Min(safePrices.DefaultIfEmpty(0).Min(), safeAvgPrices.DefaultIfEmpty(0).Min());
+            double maxPrice = validPrices.DefaultIfEmpty(0).Max();
+            double minPrice = validPrices.DefaultIfEmpty(0).Min();
 
             // 上下各留出10%的空间（总共扩大20%）
             double priceRange = maxPrice - minPrice;
-            WpfPlotPrice.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1, yAxisIndex: 0);
+            if (priceRange > 0)
+            {
+                WpfPlotPrice.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1, yAxisIndex: 0);
+            }
 
             // 调整右侧成交量轴范围
             double maxVolume = Math.Max(buyVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0,
                                         sellVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0);
-            WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3, yAxisIndex: 1); // 上限提高20%
+            if (maxVolume > 0)
+            {
+                WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3, yAxisIndex: 1); // 上限提高30%
+            }
     
             WpfPlotPrice.Render();
         }
