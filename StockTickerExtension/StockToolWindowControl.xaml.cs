@@ -1,4 +1,5 @@
-﻿using Microsoft.VisualStudio.Threading;
+﻿using Microsoft.VisualStudio.OLE.Interop;
+using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
@@ -57,6 +58,9 @@ namespace StockTickerExtension
         private DateTime _currentDate;
         private CancellationTokenSource _kdjCts;
 
+        private int PriceChatMinHeight = 240;
+        private int PriceChatMaxHeight = 340;
+
         public StockToolWindowControl()
         {
             InitializeComponent();
@@ -108,10 +112,12 @@ namespace StockTickerExtension
                 {
                     DatePickerControl.IsEnabled = false;
                     PeriodComboBox.SelectedItem = DateTime.Today;
+                    WpfPlotPrice.Height = PriceChatMinHeight;
                 }
                 else
                 {
                     DatePickerControl.IsEnabled = true;
+                    WpfPlotPrice.Height = PriceChatMaxHeight;
                 }
             }
             if (_monitoring)
@@ -149,7 +155,7 @@ namespace StockTickerExtension
         private void InitPeriodComboBox()
         {
             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Intraday" });
-            if (true)
+            if (false)
             {
                 PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Daily K" });
                 PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Weekly K" });
@@ -250,6 +256,7 @@ namespace StockTickerExtension
                 return;
 
             StopMonitoring();
+            _monitoring = true;
 
             var code = CodeTextBox.Text?.Trim();
             _cts = new CancellationTokenSource();
@@ -265,7 +272,7 @@ namespace StockTickerExtension
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
             UpdateStatus("", Brushes.Blue);
 
-            _monitoring = true;
+           
             StartBtn.IsEnabled = false;
             StopBtn.IsEnabled = true;
         }
@@ -579,12 +586,20 @@ namespace StockTickerExtension
 
             if (_queue.TryDequeue(out var snap))
             {
+                if (StockName.Text != snap.Name)
+                {
+                    StockName.Text = snap.Name;
+                }
+
                 if (string.IsNullOrEmpty(StatusText.Text))
                 {
                     UpdateStatus($"Monitoring {snap.Code} {snap.Name}", Brushes.Blue);
                 }
                 UpdatePriceChart(snap);
-                ChangePercentText.Text = snap.ChangePercent.HasValue ? $"{snap.ChangePercent.Value:F2}%" : "--%";
+
+                var val = snap.ChangePercent.Value;
+                ChangePercentText.Text = snap.ChangePercent.HasValue ? $"{val:F2}%" : "--%";
+                ChangePercentText.Foreground = val > 0 ? Brushes.Red : Brushes.Green;
                 CurrentPrice.Text = snap.CurrentPrice.ToString();
                 UpdateProfitDisplay();
             }
@@ -765,7 +780,10 @@ namespace StockTickerExtension
             double todayProfit = currentPrice * change * shares / 100;
 
             PositionProfitText.Text = $"nrealized P/L: {positionProfit:F2}";
+            PositionProfitText.Foreground = positionProfit > 0 ? Brushes.Red : Brushes.Green;
+
             TodayProfitText.Text = $"Today's P/L: {todayProfit:F2}";
+            TodayProfitText.Foreground = todayProfit > 0 ? Brushes.Red : Brushes.Green;
         }
 
         private void UpdateStatus(string text, Brush color = null)
