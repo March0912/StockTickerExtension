@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:scottplt="clr-namespace:ScottPlot;assembly=ScottPlot.WPF"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
-             Height="350" MaxWidth="1800" 
+             MinHeight="350" MaxWidth="1800" 
              HorizontalAlignment="Left"
              VerticalAlignment="Top">
 
@@ -31,7 +31,7 @@
                 <TextBox x:Name="CodeTextBox" Width="100" Text="301307" VerticalAlignment="Center" />
                 <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80"/>
                 <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80"/>
-                <TextBlock Text=" " Width="20"/>
+                <TextBlock x:Name="StockName" Text="" VerticalAlignment="Center" Foreground="Blue" Margin="6,0"/>
                 <TextBlock Text="Fluctuation:" VerticalAlignment="Center" />
                 <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center"/>
                 <TextBlock Text=" " Width="20"/>
@@ -51,7 +51,7 @@
                 <TextBlock Text="Cost Price:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBox x:Name="CostBox" Width="80" Text="40.915" />
                 <TextBlock Text="Current Price:" VerticalAlignment="Center" Margin="6,0"/>
-                <TextBox x:Name="CurrentPrice" Width="80" Text="" />
+                <TextBox x:Name="CurrentPrice" Width="80" Text="" IsReadOnly="True"/>
                 <TextBlock x:Name="PositionProfitText" Text="Unrealized P/L: --" Margin="12,0"/>
                 <TextBlock x:Name="TodayProfitText" Text="Today's P/L: --" Margin="12,0"/>
             </StackPanel>
@@ -63,7 +63,6 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="1*"/>
                 </Grid.RowDefinitions>
-
                 <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" HorizontalAlignment="Stretch" Grid.Row="0" Margin="0,0,0,0"/>
             </Grid>
 
