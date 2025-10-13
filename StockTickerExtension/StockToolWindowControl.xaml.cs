@@ -638,27 +638,70 @@ namespace StockTickerExtension
 
             WpfPlotPrice.Plot.Clear();
 
-            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: safePrices.Count);
+            // 固定x轴范围为完整的交易时间范围，而不是根据数据点数量动态调整
+            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _totalMinutes - 1);
 
-            var xs = Enumerable.Range(0, safePrices.Count).Select(i => (double)i).ToArray();
+            // 使用完整的交易时间索引，而不是只使用有效数据点的索引
+            var xs = Enumerable.Range(0, _totalMinutes).Select(i => (double)i).ToArray();
 
-            // 价格曲线
-            WpfPlotPrice.Plot.AddScatter(xs, safePrices.ToArray(), color: System.Drawing.Color.FromArgb(31, 119, 180), lineWidth: 2.0f, markerSize: 2.2f);
-            WpfPlotPrice.Plot.AddScatter(xs, safeAvgPrices.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 2.0f, markerSize: 2.2f);
+            // 创建完整的价格数组，包含NaN值用于没有数据的时间点
+            var fullPrices = new double[_totalMinutes];
+            var fullAvgPrices = new double[_totalMinutes];
+            
+            // 将有效价格数据填充到对应的时间索引位置
+            for (int i = 0; i < snap.Prices.Length && i < _totalMinutes; i++)
+            {
+                fullPrices[i] = snap.Prices[i];
+                fullAvgPrices[i] = snap.AvgPrices[i];
+            }
+
+            // 价格曲线 - 只绘制有效的数据点
+            var validPriceIndices = new List<double>();
+            var validPrices = new List<double>();
+            var validAvgPrices = new List<double>();
+            
+            for (int i = 0; i < _totalMinutes; i++)
+            {
+                if (!double.IsNaN(fullPrices[i]))
+                {
+                    validPriceIndices.Add(i);
+                    validPrices.Add(fullPrices[i]);
+                    validAvgPrices.Add(double.IsNaN(fullAvgPrices[i]) ? fullPrices[i] : fullAvgPrices[i]);
+                }
+            }
+            
+            if (validPrices.Count > 0)
+            {
+                WpfPlotPrice.Plot.AddScatter(validPriceIndices.ToArray(), validPrices.ToArray(), color: System.Drawing.Color.FromArgb(31, 119, 180), lineWidth: 2.0f, markerSize: 2.2f);
+                WpfPlotPrice.Plot.AddScatter(validPriceIndices.ToArray(), validAvgPrices.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 2.0f, markerSize: 2.2f);
+            }
+
+            // 创建完整的成交量数组，初始化为0
+            var fullBuyVolumes = new double[_totalMinutes];
+            var fullSellVolumes = new double[_totalMinutes];
 
             // 成交量（右Y轴）
             if (snap.BuyVolumes != null && snap.SellVolumes != null)
             {
-                var safeBuy = snap.BuyVolumes.Take(safePrices.Count).ToArray();
-                var safeSell = snap.SellVolumes.Take(safePrices.Count).ToArray();
+                // 将有效成交量数据填充到对应的时间索引位置
+                for (int i = 0; i < snap.BuyVolumes.Length && i < _totalMinutes; i++)
+                {
+                    // 确保不包含NaN值，将NaN替换为0
+                    fullBuyVolumes[i] = double.IsNaN(snap.BuyVolumes[i]) ? 0 : snap.BuyVolumes[i];
+                    fullSellVolumes[i] = double.IsNaN(snap.SellVolumes[i]) ? 0 : snap.SellVolumes[i];
+                }
 
-                var barBuy = WpfPlotPrice.Plot.AddBar(safeBuy, xs);
+                var barBuy = WpfPlotPrice.Plot.AddBar(fullBuyVolumes, xs);
                 barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
                 barBuy.YAxisIndex = 1; // 使用右Y轴
+                barBuy.BarWidth = 0.5; // 设置固定柱状图宽度
+                barBuy.BorderLineWidth = 0; // 去掉边框
 
-                var barSell = WpfPlotPrice.Plot.AddBar(safeSell, xs);
+                var barSell = WpfPlotPrice.Plot.AddBar(fullSellVolumes, xs);
                 barSell.FillColor = System.Drawing.Color.FromArgb(100, 0, 255, 0);
                 barSell.YAxisIndex = 1;
+                barSell.BarWidth = 0.5; // 设置固定柱状图宽度
+                barSell.BorderLineWidth = 0; // 去掉边框
             }
 
             // 设置坐标轴
@@ -690,16 +733,20 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
 
             // ------------------ 价格轴（左Y轴）留20%空间 ------------------
-            double maxPrice = Math.Max(safePrices.DefaultIfEmpty(0).Max(), safeAvgPrices.DefaultIfEmpty(0).Max());
-            double minPrice = Math.Min(safePrices.DefaultIfEmpty(0).Min(), safeAvgPrices.DefaultIfEmpty(0).Min());
+            double maxPrice = 0, minPrice = 0;
+            if (validPrices.Count > 0)
+            {
+                maxPrice = Math.Max(validPrices.Max(), validAvgPrices.Max());
+                minPrice = Math.Min(validPrices.Min(), validAvgPrices.Min());
+            }
 
             // 上下各留出10%的空间（总共扩大20%）
             double priceRange = maxPrice - minPrice;
             WpfPlotPrice.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1, yAxisIndex: 0);
 
             // 调整右侧成交量轴范围
-            double maxVolume = Math.Max(snap.BuyVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0,
-                                        snap.SellVolumes?.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max() ?? 0);
+            double maxVolume = Math.Max(fullBuyVolumes.DefaultIfEmpty(0).Max(),
+                                        fullSellVolumes.DefaultIfEmpty(0).Max());
             WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3, yAxisIndex: 1); // 上限提高20%
 
             WpfPlotPrice.Render();
@@ -730,8 +777,8 @@ namespace StockTickerExtension
             // 成交量（右Y轴）
             if (snap.BuyVolumes != null && snap.SellVolumes != null)
             {
-                var safeBuy = snap.BuyVolumes.Take(safePrices.Count).ToArray();
-                var safeSell = snap.SellVolumes.Take(safePrices.Count).ToArray();
+                var safeBuy = snap.BuyVolumes.Take(safePrices.Count).Select(v => double.IsNaN(v) ? 0 : v).ToArray();
+                var safeSell = snap.SellVolumes.Take(safePrices.Count).Select(v => double.IsNaN(v) ? 0 : v).ToArray();
 
                 var barBuy = WpfPlotPrice.Plot.AddBar(safeBuy, xs);
                 barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
