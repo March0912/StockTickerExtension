@@ -1,4 +1,5 @@
-﻿using Microsoft.VisualStudio.Threading;
+﻿using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
@@ -76,6 +77,7 @@ namespace StockTickerExtension
 
     public partial class StockToolWindowControl : UserControl
     {
+        private readonly StockToolWindow _ownerPane;
         private CancellationTokenSource _cts;
         private readonly HttpClient _http = new HttpClient();
         private readonly ConcurrentQueue<StockSnapshot> _queue = new ConcurrentQueue<StockSnapshot>();
@@ -89,18 +91,21 @@ namespace StockTickerExtension
         private DateTime _currentDate;
         private CancellationTokenSource _kdjCts;
 
-        private int PriceChatMinHeight = 240;
-        private int PriceChatMaxHeight = 340;
-
-        public StockToolWindowControl()
+        public StockToolWindowControl(ToolWindowPane owner)
         {
             InitializeComponent();
 
+            _ownerPane = owner as StockToolWindow;
             _currentDate = GetCurrentDate();
             _tradingMinutes = BuildTradingMinutes(_currentDate);
             _totalMinutes = _tradingMinutes.Count;
 
             Init();
+        }
+
+        public bool IsAutoStopWhenClosed()
+        {
+            return AutoStopCheckBox.IsChecked == true;
         }
 
         private void StartBtn_Click(object sender, System.Windows.RoutedEventArgs e) => StartMonitoring();
@@ -127,11 +132,12 @@ namespace StockTickerExtension
             }
         }
 
-        private void StockToolWindowControl_Unloaded(object sender, RoutedEventArgs e)
+        private void On_Unloaded(object sender, RoutedEventArgs e)
         {
             if (AutoStopCheckBox.IsChecked == true)
             {
                 StopMonitoring();
+                _ownerPane.ClearStatusInfo();
             }
         }
 
@@ -143,28 +149,48 @@ namespace StockTickerExtension
                 {
                     DatePickerControl.IsEnabled = false;
                     PeriodComboBox.SelectedItem = DateTime.Today;
-//                     WpfPlotPrice.Height = PriceChatMinHeight;
+                    MA5.IsEnabled = false;
+                    MA10.IsEnabled = false;
+                    MA20.IsEnabled = false;
+                    MA30.IsEnabled = false;
+                    MA60.IsEnabled = false;
+
                     WpfPlotPrice.Plot.Clear();
+                    WpfPlotPrice.Configuration.ScrollWheelZoom = false;
+                    WpfPlotPrice.Configuration.LeftClickDragPan = false;
+                    WpfPlotVolume.Configuration.ScrollWheelZoom = false;
+                    WpfPlotVolume.Configuration.LeftClickDragPan = false;
                     WpfPlotPrice.Render();
+
                     WpfPlotVolume.Visibility = Visibility.Hidden;
+                    WpfPlotVolume.Render();
                 }
                 else
                 {
                     DatePickerControl.IsEnabled = true;
-//                     WpfPlotPrice.Height = PriceChatMaxHeight;
+                    MA5.IsEnabled = true;
+                    MA10.IsEnabled = true;
+                    MA20.IsEnabled = true;
+                    MA30.IsEnabled = true;
+                    MA60.IsEnabled = true;
+
+                    WpfPlotPrice.Configuration.ScrollWheelZoom = true;
+                    WpfPlotPrice.Configuration.LeftClickDragPan = true;
+                    WpfPlotPrice.Render();
+
+                    WpfPlotVolume.Configuration.ScrollWheelZoom = true;
+                    WpfPlotVolume.Configuration.LeftClickDragPan = true;
                     WpfPlotVolume.Visibility = Visibility.Visible;
+                    WpfPlotVolume.Render();
                 }
             }
-            if (_monitoring)
-            {
-                StopMonitoring(); // 切换周期时先停止监控
-                StartMonitoring();
-            }
+
+            StartBtn_Click(null, null);
         }
 
         private void Date_SelecteionChanged(object sender, SelectionChangedEventArgs e)
         {
-            _currentDate = GetCurrentDate();           
+            _currentDate = GetCurrentDate();
             _tradingMinutes = BuildTradingMinutes(_currentDate);
             _totalMinutes = _tradingMinutes.Count;
         }
@@ -172,13 +198,20 @@ namespace StockTickerExtension
         private void Init()
         {
             StartBtn.Click += StartBtn_Click;
+            StartBtn.Content = !IsTradingTime(DateTime.Now) ? "Get" : "Start";
             StopBtn.Click += StopBtn_Click;
             StopBtn.IsEnabled = false;
+
+            MA5.IsEnabled = false;
+            MA10.IsEnabled = false;
+            MA20.IsEnabled = false;
+            MA30.IsEnabled = false;
+            MA60.IsEnabled = false;
 
             CodeTextBox.PreviewTextInput += CodeTextBox_PreviewTextInput;
             DataObject.AddPastingHandler(CodeTextBox, CodeTextBox_Pasting);
             // 当 UserControl 卸载（窗口关闭）时停止监控
-            this.Unloaded += StockToolWindowControl_Unloaded;
+            this.Unloaded += On_Unloaded;
             DatePickerControl.SelectedDateChanged += Date_SelecteionChanged;
 
             CurrentPrice.FontWeight = FontWeights.Bold;
@@ -250,6 +283,33 @@ namespace StockTickerExtension
             return list;
         }
 
+        private void UpdateVSStatus(double price, double changePercent, double positionProfit, double todayProfit)
+        {
+            // Dispatcher 保证在 UI 线程安全执行
+            Dispatcher.Invoke(() =>
+            {
+                // 获取当前的父窗口（ToolWindowPane）
+                if (_ownerPane != null)
+                {
+                    _ownerPane.UpdateStatusInfo(price, changePercent, positionProfit, todayProfit);
+                }
+            });
+        }
+
+        private void UpdateVSStatus(string text)
+        {
+            // Dispatcher 保证在 UI 线程安全执行
+            Dispatcher.Invoke(() =>
+            {
+                // 获取当前的父窗口（ToolWindowPane）
+                if (_ownerPane != null)
+                {
+                    _ownerPane.UpdateStatusInfo(text);
+                }
+            });
+        }
+
+
         bool IsWeekend(DateTime dt) => dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday;
 
         bool IsTradingTime(DateTime dt)
@@ -267,7 +327,7 @@ namespace StockTickerExtension
                    (nowTime >= afternoonStart && nowTime <= afternoonEnd);
         }
 
-        bool CheckTradingTime(string period)
+        bool CheckTradingTime()
         {
             var code = CodeTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(code))
@@ -277,18 +337,10 @@ namespace StockTickerExtension
             }
 
             // ------------------ 检查交易时间 ------------------
-            if (period == "Intraday" && !IsTradingTime(DateTime.Now))
+            if (!IsTradingTime(DateTime.Now))
             {
                 // 收盘后（15:00之后）允许启动，并显示当日完整分时数据
-                var now = DateTime.Now.TimeOfDay;
-                var closeTime = new TimeSpan(15, 0, 0);
-                if (now > closeTime)
-                {
-                    _monitorOnce = true;
-                    return true;
-                }
-
-                UpdateStatus("Currently outside trading hours, monitoring cannot start", Brushes.Red);
+                UpdateStatus("Currently outside trading hours", Brushes.Red); 
                 return false;
             }
             return true;
@@ -304,8 +356,11 @@ namespace StockTickerExtension
             else
                 period = PeriodComboBox.Text;
 
-            if (!CheckTradingTime(period))
-                return;
+            if (!CheckTradingTime())
+            {
+                // 如果不在交易时间，则不启动监控，只获取一次数据
+                _monitorOnce = true;
+            }
 
             StopMonitoring();
             _monitoring = true;
@@ -318,7 +373,10 @@ namespace StockTickerExtension
             if (period == "Intraday")
             {
                 _kdjCts = new CancellationTokenSource();
-                _ = Task.Run(() => MonitorKDJAsync(code, _kdjCts.Token));
+                if (!_monitorOnce)
+                {
+                    _ = Task.Run(() => MonitorKDJAsync(code, _kdjCts.Token));
+                }
             }
 
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
@@ -420,15 +478,15 @@ namespace StockTickerExtension
 			if(period == "Daily K")
 				begStr = _currentDate.AddDays(-240).ToString("yyyyMMdd"); // 多取 40 天以支持 MA 引导
             else if (period == "Weekly K")
-                begStr = _currentDate.AddDays(-120*3).ToString("yyyyMMdd");
+                begStr = _currentDate.AddDays(-240*7).ToString("yyyyMMdd");
             else if (period == "Monthly K")
-                begStr = _currentDate.AddMonths(-200).ToString("yyyyMMdd");
+                begStr = _currentDate.AddMonths(-240).ToString("yyyyMMdd");
             else if (period == "Quarterly K")
-                begStr = _currentDate.AddMonths(-200).ToString("yyyyMMdd");
+                begStr = _currentDate.AddMonths(-240*4).ToString("yyyyMMdd");
             else if (period == "Yearly K")
                 begStr = _currentDate.AddYears(-10).ToString("yyyyMMdd");
             else
-                begStr = _currentDate.AddDays(-200).ToString("yyyyMMdd");
+                begStr = _currentDate.AddDays(-240).ToString("yyyyMMdd");
 
             string dateStr = _currentDate.ToString("yyyyMMdd");
             string url = $"https://push2his.eastmoney.com/api/qt/stock/kline/get?secid={secid}&klt={kType}&fqt=1&beg={begStr}&end={dateStr}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57,f58";
@@ -667,6 +725,7 @@ namespace StockTickerExtension
                 }
             }
         }
+
         private void UpdatePriceChart(StockSnapshot snap)
         {
             if (!_monitoring)
@@ -821,6 +880,7 @@ namespace StockTickerExtension
             // 清理两个图
             WpfPlotPrice.Plot.Clear();
             WpfPlotPrice.Plot.YAxis2.Ticks(false);
+            WpfPlotPrice.Plot.YAxis2.Label("");
             WpfPlotVolume.Plot.Clear();
 
             // 确保成交量区可见
@@ -1110,7 +1170,6 @@ namespace StockTickerExtension
             WpfPlotVolume.Render();
         }
 
-
         private void UpdateProfitDisplay()
         {
             if (!double.TryParse(SharesBox.Text, out double shares)) return;
@@ -1126,6 +1185,8 @@ namespace StockTickerExtension
 
             TodayProfitText.Text = $"Today's P/L: {todayProfit:F2}";
             TodayProfitText.Foreground = todayProfit > 0 ? Brushes.Red : Brushes.Green;
+
+            UpdateVSStatus(currentPrice, change, positionProfit, todayProfit);
         }
 
         private void UpdateStatus(string text, Brush color = null)
@@ -1195,6 +1256,7 @@ namespace StockTickerExtension
 
 			return result;
 		}
+
         private DateTime GetCurrentDate()
         {
             string s = DatePickerControl.Text;
@@ -1241,9 +1303,17 @@ namespace StockTickerExtension
                 var t = DateTime.Now.ToString("hh:mm:ss");
 
                 if (isGolden)
-                    UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Green);
+                {
+                    string str = $"*************** {t} KDJ 出现金叉信号！***************";
+                    UpdateStatus(str, Brushes.Green);
+                    UpdateVSStatus(str);
+                }
                 else if (isDeath)
-                    UpdateStatus($"*************** {t} KDJ 出现金叉信号！***************", Brushes.Red);
+                {
+                    string str = $"*************** {t} KDJ 出现死叉信号！***************";
+                    UpdateStatus(str, Brushes.Red);
+                    UpdateVSStatus(str);
+                }
             }
         }
 
@@ -1336,6 +1406,5 @@ namespace StockTickerExtension
             }
             return false;
         }
-
     }
 }
