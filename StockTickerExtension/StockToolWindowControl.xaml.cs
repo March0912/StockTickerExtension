@@ -181,6 +181,9 @@ namespace StockTickerExtension
             this.Unloaded += StockToolWindowControl_Unloaded;
             DatePickerControl.SelectedDateChanged += Date_SelecteionChanged;
 
+            CurrentPrice.FontWeight = FontWeights.Bold;
+            CurrentPrice.Foreground = Brushes.Blue;
+
             InitPeriodComboBox();
             InitPriceChat();
 
@@ -750,13 +753,13 @@ namespace StockTickerExtension
                 }
 
                 var barBuy = WpfPlotPrice.Plot.AddBar(fullBuyVolumes, xs);
-                barBuy.FillColor = System.Drawing.Color.Red;
+                barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
                 barBuy.YAxisIndex = 1; // 使用右Y轴
                 barBuy.BarWidth = 0.5; // 设置固定柱状图宽度
                 barBuy.BorderLineWidth = 0; // 去掉边框
 
                 var barSell = WpfPlotPrice.Plot.AddBar(fullSellVolumes, xs);
-                barSell.FillColor = System.Drawing.Color.Green;
+                barSell.FillColor = System.Drawing.Color.FromArgb(150, 0, 255, 0);
                 barSell.YAxisIndex = 1;
                 barSell.BarWidth = 0.5; // 设置固定柱状图宽度
                 barSell.BorderLineWidth = 0; // 去掉边框
