@@ -1,5 +1,4 @@
-﻿using EnvDTE;
-using Microsoft.VisualStudio.Shell;
+﻿using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
 using System;
@@ -11,7 +10,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives; // for Thumb
 using System.Windows.Input;
 using System.Windows.Media; // for VisualTreeHelper
 using System.Windows.Threading;
@@ -88,11 +86,12 @@ namespace StockTickerExtension
     public partial class StockToolWindowControl : UserControl
     {
         private readonly StockToolWindow _ownerPane;
-        private CancellationTokenSource _cts;
+        private readonly ConfigManager _configManager = new ConfigManager();
         private readonly HttpClient _http = new HttpClient();
         private readonly ConcurrentQueue<StockSnapshot> _queue = new ConcurrentQueue<StockSnapshot>();
+        
+        private CancellationTokenSource _cts;
         private DispatcherTimer _uiTimer;
-
         private List<string> _tradingMinutes;
         private int _fetchIntervalSeconds = 5;
         private bool _monitoring = false;
@@ -107,13 +106,14 @@ namespace StockTickerExtension
         private double _dragStartX = 0;
         private int _dragStartIndex = 0;
 
+        const string s_trendsURL = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
+        const string s_klineURL = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
+
         public StockToolWindowControl(ToolWindowPane owner)
         {
             InitializeComponent();
 
             _ownerPane = owner as StockToolWindow;
-            _currentDate = GetCurrentDate();
-            _tradingMinutes = BuildTradingMinutes(_currentDate);
 
             Init();
         }
@@ -149,6 +149,8 @@ namespace StockTickerExtension
 
         private void On_Unloaded(object sender, RoutedEventArgs e)
         {
+            SaveConfig();
+
             if (AutoStopCheckBox.IsChecked == true)
             {
                 StopMonitoring();
@@ -158,69 +160,59 @@ namespace StockTickerExtension
 
         private void PeriodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (PeriodComboBox.SelectedItem is ComboBoxItem item)
+            if (PeriodComboBox.SelectedIndex == (int)ChartType.Intraday)
             {
-                if (item.Content.ToString() == "Intraday")
-                {
-                    DatePickerControl.IsEnabled = false;
-                    PeriodComboBox.SelectedItem = DateTime.Today;
-                    MA5.IsEnabled = false;
-                    MA10.IsEnabled = false;
-                    MA20.IsEnabled = false;
-                    MA30.IsEnabled = false;
-                    MA60.IsEnabled = false;
+                DatePickerControl.IsEnabled = false;
+                DatePickerControl.SelectedDate = DateTime.Today;
 
-                    WpfPlotPrice.Plot.Clear();
-                    WpfPlotPrice.Configuration.ScrollWheelZoom = false;
-                    WpfPlotPrice.Configuration.LeftClickDragPan = false;
-                    WpfPlotVolume.Configuration.ScrollWheelZoom = false;
-                    WpfPlotVolume.Configuration.LeftClickDragPan = false;
-                    WpfPlotPrice.Render();
+                MA5.IsEnabled = false;
+                MA10.IsEnabled = false;
+                MA20.IsEnabled = false;
+                MA30.IsEnabled = false;
+                MA60.IsEnabled = false;
 
-                    WpfPlotVolume.Visibility = Visibility.Hidden;
-                    WpfPlotVolume.Render();
-                }
-                else
-                {
-                    DatePickerControl.IsEnabled = true;
-                    MA5.IsEnabled = true;
-                    MA10.IsEnabled = true;
-                    MA20.IsEnabled = true;
-                    MA30.IsEnabled = true;
-                    MA60.IsEnabled = true;
+                WpfPlotPrice.Plot.Clear();
+                WpfPlotPrice.Configuration.ScrollWheelZoom = false;
+                WpfPlotPrice.Configuration.LeftClickDragPan = false;
+                WpfPlotVolume.Configuration.ScrollWheelZoom = false;
+                WpfPlotVolume.Configuration.LeftClickDragPan = false;
+                WpfPlotPrice.Render();
 
-                    WpfPlotPrice.Configuration.ScrollWheelZoom = true;
-                    WpfPlotPrice.Configuration.LeftClickDragPan = true;
-                    WpfPlotPrice.Render();
+                WpfPlotVolume.Visibility = Visibility.Hidden;
+                WpfPlotVolume.Render();
+            }
+            else
+            {
+                DatePickerControl.IsEnabled = true;
+                MA5.IsEnabled = true;
+                MA10.IsEnabled = true;
+                MA20.IsEnabled = true;
+                MA30.IsEnabled = true;
+                MA60.IsEnabled = true;
 
-                    WpfPlotVolume.Configuration.ScrollWheelZoom = true;
-                    WpfPlotVolume.Configuration.LeftClickDragPan = true;
-                    WpfPlotVolume.Visibility = Visibility.Visible;
-                    WpfPlotVolume.Render();
-                }
+                WpfPlotPrice.Configuration.ScrollWheelZoom = true;
+                WpfPlotPrice.Configuration.LeftClickDragPan = true;
+                WpfPlotPrice.Render();
+
+                WpfPlotVolume.Configuration.ScrollWheelZoom = true;
+                WpfPlotVolume.Configuration.LeftClickDragPan = true;
+                WpfPlotVolume.Visibility = Visibility.Visible;
+                WpfPlotVolume.Render();
             }
 
             StartBtn_Click(null, null);
         }
 
+        private void CodeTextBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            StopMonitoring();
+            StartBtn_Click(null, null);
+        }
+
         private void StockTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (StockTypeComboBox.SelectedItem is ComboBoxItem item)
-            {
-                if (item.Content.ToString() == "Stock A")
-                {
-                    _stockType = StockType.StockA;
-                }
-                else if (item.Content.ToString() == "Stock HK")
-                {
-                    _stockType = StockType.StockHK;
-                }
-                else if (item.Content.ToString() == "Stock US")
-                {
-                    _stockType = StockType.StockUS;
-                }
-                _tradingMinutes = BuildTradingMinutes(_currentDate);
-            }
+            _stockType = (StockType)StockTypeComboBox.SelectedIndex;
+            _tradingMinutes = BuildTradingMinutes(_currentDate);
         }
 
         private void Date_SelecteionChanged(object sender, SelectionChangedEventArgs e)
@@ -234,8 +226,57 @@ namespace StockTickerExtension
             e.Handled = false;
         }
 
+        private void CodeTextBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true; // 防止系统默认行为（例如“叮”声）
+
+                if (sender is ComboBox comboBox)
+                {
+                    var text = comboBox.Text?.Trim();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        // 自动把输入的代码加入历史记录
+//                         if (!comboBox.Items.Contains(text))
+//                             comboBox.Items.Add(text);
+
+                        if (!_monitoring)
+                            StartBtn_Click(null, null);
+                    }
+                    else
+                    {
+                        UpdateStatus("Please enter a stock code.", Brushes.Red);
+                    }
+                }
+            }
+        }
+
+        private void AddBtn_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            var text = CodeTextBox.Text?.Trim();
+            if (!string.IsNullOrEmpty(text))
+            {
+                // 自动把输入的代码加入历史记录
+                if (!CodeTextBox.Items.Contains(text))
+                {
+                    CodeTextBox.Items.Add(text);
+                }
+            }
+        }
+
         private void Init()
         {
+            _configManager.Load();
+
+            AutoStopCheckBox.IsChecked = _configManager.Config.AutoStopOnClose;
+            MA5.IsChecked = _configManager.Config.MA5Checked;
+            MA10.IsChecked = _configManager.Config.MA10Checked;
+            MA20.IsChecked = _configManager.Config.MA20Checked;
+            MA30.IsChecked = _configManager.Config.MA30Checked;
+            MA60.IsChecked = _configManager.Config.MA60Checked;
+
+            AddBtn.Click += AddBtn_Click;
             StartBtn.Click += StartBtn_Click;
             StartBtn.Content = !IsTradingTime(DateTime.Now) ? "Get" : "Start";
             StopBtn.Click += StopBtn_Click;
@@ -247,8 +288,6 @@ namespace StockTickerExtension
             MA30.IsEnabled = false;
             MA60.IsEnabled = false;
 
-//             CodeTextBox.PreviewTextInput += CodeTextBox_PreviewTextInput;
-            DataObject.AddPastingHandler(CodeTextBox, CodeTextBox_Pasting);
             // 当 UserControl 卸载（窗口关闭）时停止监控
             this.Unloaded += On_Unloaded;
             DatePickerControl.SelectedDateChanged += Date_SelecteionChanged;
@@ -256,33 +295,56 @@ namespace StockTickerExtension
             CurrentPrice.FontWeight = FontWeights.Bold;
             CurrentPrice.Foreground = Brushes.Blue;
 
+            InitCodeTextBox();
             InitStockTypeComboBox();
             InitPeriodComboBox();
+
+            _currentDate = GetCurrentDate();
+            _tradingMinutes = BuildTradingMinutes(_currentDate);
+
             InitPriceChat();
-            InitKLineInteractions();
 
             _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
         }
 
-        private void InitPeriodComboBox()
+        private void InitCodeTextBox()
         {
-            StockTypeComboBox.Items.Add(new ComboBoxItem { Content = "Stock A" });
-            StockTypeComboBox.Items.Add(new ComboBoxItem { Content = "Stock HK" });
-            StockTypeComboBox.Items.Add(new ComboBoxItem { Content = "Stock US" });
-            StockTypeComboBox.SelectionChanged += StockTypeComboBox_SelectionChanged;
+            CodeTextBox.KeyUp += CodeTextBox_KeyUp;
+            DataObject.AddPastingHandler(CodeTextBox, CodeTextBox_Pasting);
+
+            foreach (var code in _configManager.Config.WatchStockList)
+            {
+                CodeTextBox.Items.Add(code);
+            }
+
+            CodeTextBox.Text = _configManager.Config.LastStockCode;
+
+            //有问题，先不启用
+//             CodeTextBox.SelectionChanged += CodeTextBox_SelectionChanged;    
         }
 
         private void InitStockTypeComboBox()
         {
-            PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Intraday" });
-            if (true)
-            {
-                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Daily K" });
-                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Weekly K" });
-                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Monthly K" });
-                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Quarterly K" });
-                PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Yearly K" });
-            }
+            StockTypeComboBox.Items.Add("Stock A");
+            StockTypeComboBox.Items.Add("Stock HK");
+            StockTypeComboBox.Items.Add("Stock US");
+
+            StockTypeComboBox.SelectedIndex = (int)_configManager.Config.LastStockType;
+            _stockType = _configManager.Config.LastStockType;
+
+            StockTypeComboBox.SelectionChanged += StockTypeComboBox_SelectionChanged;
+        }
+
+        private void InitPeriodComboBox()
+        {
+            PeriodComboBox.Items.Add("Intraday");
+            PeriodComboBox.Items.Add("Daily K");
+            PeriodComboBox.Items.Add("Weekly K");
+            PeriodComboBox.Items.Add("Monthly K");
+            PeriodComboBox.Items.Add("Quarterly K");
+            PeriodComboBox.Items.Add("Yearly K");
+
+            PeriodComboBox.SelectedItem = _configManager.Config.PeriodType;
             PeriodComboBox.SelectionChanged += PeriodComboBox_SelectionChanged;
         }
 
@@ -292,8 +354,20 @@ namespace StockTickerExtension
             WpfPlotPrice.Configuration.LeftClickDragPan = false;
             WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
 
+            // 为价格图添加鼠标事件
+            WpfPlotPrice.MouseWheel += OnKLineMouseWheel;
+            WpfPlotPrice.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
+            WpfPlotPrice.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
+            WpfPlotPrice.MouseMove += OnKLineMouseMove;
+
             WpfPlotVolume.Configuration.ScrollWheelZoom = false;
             WpfPlotVolume.Configuration.LeftClickDragPan = false;
+
+            // 为成交量图添加相同的鼠标事件，实现联动
+            WpfPlotVolume.MouseWheel += OnKLineMouseWheel;
+            WpfPlotVolume.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
+            WpfPlotVolume.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
+            WpfPlotVolume.MouseMove += OnKLineMouseMove;
 
             // 关键时间点
             var dateStr = _currentDate.ToString("yyyy-MM-dd ");
@@ -315,24 +389,6 @@ namespace StockTickerExtension
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
             WpfPlotVolume.Visibility = Visibility.Hidden;
-        }
-
-        /// <summary>
-        /// 初始化K线图交互功能
-        /// </summary>
-        private void InitKLineInteractions()
-        {
-            // 为价格图添加鼠标事件
-            WpfPlotPrice.MouseWheel += OnKLineMouseWheel;
-            WpfPlotPrice.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
-            WpfPlotPrice.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
-            WpfPlotPrice.MouseMove += OnKLineMouseMove;
-            
-            // 为成交量图添加相同的鼠标事件，实现联动
-            WpfPlotVolume.MouseWheel += OnKLineMouseWheel;
-            WpfPlotVolume.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
-            WpfPlotVolume.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
-            WpfPlotVolume.MouseMove += OnKLineMouseMove;
         }
 
         private List<string> BuildTradingMinutes(DateTime date)
@@ -493,14 +549,7 @@ namespace StockTickerExtension
 
         private void StartMonitoring()
         {
-            string period;
-            if (PeriodComboBox.SelectedItem is ComboBoxItem item)
-            {
-                period = item.Content.ToString();
-            }
-            else
-                period = PeriodComboBox.Text;
-
+            string period = PeriodComboBox.SelectedItem.ToString();
             if (!CheckTradingTime())
             {
                 if(period == "Intraday" && DateTime.Now.TimeOfDay < new TimeSpan(9, 30, 0))
@@ -599,9 +648,23 @@ namespace StockTickerExtension
                         while (_queue.Count > 0) _queue.TryDequeue(out _);
                         _queue.Enqueue(snap);
                     }
+                    else
+                    {
+                        await Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            StopBtn_Click(null, null);
+                        }));
+                        UpdateStatus("Error: Failed to fetch data!", Brushes.Red);
+                    }
                 }
-                catch (OperationCanceledException) { break; }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.Message); }
+                catch (Exception ex)
+                {
+                    await Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        StopBtn_Click(null, null);
+                    }));
+                    UpdateStatus("Error:" + ex.Message);
+                }
 
                 for (int i = 0; i < _fetchIntervalSeconds * 10; i++)
                 {
@@ -636,9 +699,8 @@ namespace StockTickerExtension
                 begStr = _currentDate.AddDays(-240).ToString("yyyyMMdd");
 
             string dateStr = _currentDate.ToString("yyyyMMdd");
-            string url = $"https://push2his.eastmoney.com/api/qt/stock/kline/get";
             var parameters = $"?secid={secid}&klt={kType}&fqt=1&beg={begStr}&end={dateStr}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57,f58";
-            var requestUrl = url + parameters;
+            var requestUrl = s_klineURL + parameters;
 
             string text;
             using (var resp = await _http.GetAsync(requestUrl))
@@ -648,12 +710,17 @@ namespace StockTickerExtension
                 text = await resp.Content.ReadAsStringAsync();
             }
             var jobj = JObject.Parse(text);
-            if (jobj["data"] == null || jobj["data"]["klines"] == null) return null;
+            if (jobj["data"] == null)
+                return null;
 
-            var klines = jobj["data"]["klines"].ToObject<string[]>();
+            var dataObj = jobj["data"];
+            if (dataObj.Type == JTokenType.Null)
+                return null;
+
+            var klines = dataObj["klines"].ToObject<string[]>();
             if (klines.Length == 0) return null;
 
-			var name = jobj["data"]["name"]?.ToString();
+			var name = dataObj["name"]?.ToString();
 			int count = klines.Length;
 			var prices = new double[count];
             var avgPrices = new double[count];
@@ -716,11 +783,9 @@ namespace StockTickerExtension
             var secid = GetSecId(code);
             if (secid == null) return null;
 
-            var url = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
-
             var dateStr = _currentDate.ToString("yyyyMMdd");
             var parameters = $"?fields1=f1,f2,f3,f4,f5,f6,f7,f8&fields2=f51,f52,f53,f54,f55,f56,f57,f58&iscr=0&ndays=1&secid={secid}&ut=fa5fd1943c7b386f172d6893dbfba10b&trends={dateStr}";
-            var requestUrl = url + parameters;
+            var requestUrl = s_trendsURL + parameters;
 
             using (var req = new HttpRequestMessage(HttpMethod.Get, requestUrl))
             {
@@ -730,10 +795,15 @@ namespace StockTickerExtension
 
                 var text = await resp.Content.ReadAsStringAsync();
                 var jobj = JObject.Parse(text);
-                if (jobj["data"] == null || jobj["data"]["trends"] == null) return null;
+                if (jobj["data"] == null)
+                    return null;
 
-                var name = jobj["data"]["name"].ToObject<string>();
-                var trends = jobj["data"]["trends"].ToObject<string[]>();
+                var dataObj = jobj["data"];
+                if(dataObj.Type == JTokenType.Null)
+                    return null;
+
+                var name = dataObj["name"].ToObject<string>();
+                var trends = dataObj["trends"].ToObject<string[]>();
                 if (trends == null || trends.Length == 0) return null;
 
                 var prices = Enumerable.Repeat(double.NaN, _tradingMinutes.Count).ToArray();
@@ -804,7 +874,7 @@ namespace StockTickerExtension
 
                 double lastPrice = parsedRows.LastOrDefault().price;
                 double changePercent = double.NaN;
-                if (double.TryParse(jobj["data"]["preClose"]?.ToString(), out double preClose))
+                if (double.TryParse(dataObj["preClose"]?.ToString(), out double preClose))
                 {
                     changePercent = (lastPrice - preClose) / preClose * 100;
                 }
@@ -892,6 +962,13 @@ namespace StockTickerExtension
                 {
                     StopBtn_Click(null, null);
                     _monitorOnce = false;
+                }
+                else
+                {
+                    if(!IsTradingTime(DateTime.Now))
+                    {
+                        StopBtn_Click(null, null);
+                    }
                 }
             }
         }
@@ -1642,6 +1719,37 @@ namespace StockTickerExtension
                     UpdateVSStatus(str);
                 }
             }
+        }
+
+        public void SaveConfig()
+        {
+            _configManager.Config.LastStockType = (StockType)StockTypeComboBox.SelectedIndex;
+            _configManager.Config.LastStockCode = CodeTextBox.Text.Trim();
+            _configManager.Config.PeriodType = PeriodComboBox.Text;
+            _configManager.Config.AutoStopOnClose = AutoStopCheckBox.IsChecked == true;
+            
+            int shares = 0;
+            int.TryParse(SharesBox.Text, out shares);
+            _configManager.Config.LastShares = shares;
+
+            float cost = 0.0f;
+            float.TryParse(CostBox.Text, out cost);
+            _configManager.Config.LastCostPrices = cost;
+
+            _configManager.Config.MA5Checked = MA5.IsChecked == true;
+            _configManager.Config.MA10Checked = MA10.IsChecked == true;
+            _configManager.Config.MA20Checked = MA20.IsChecked == true;
+            _configManager.Config.MA30Checked = MA30.IsChecked == true;
+            _configManager.Config.MA60Checked = MA60.IsChecked == true;
+
+            foreach (var str in CodeTextBox.Items)
+            {
+                if (!_configManager.Config.WatchStockList.Contains(str.ToString()))
+                {
+                    _configManager.Config.WatchStockList.Add(str.ToString());
+                }
+            }
+            _configManager.Save();
         }
 
     }

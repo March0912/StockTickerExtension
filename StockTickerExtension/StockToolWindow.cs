@@ -85,6 +85,7 @@ namespace StockTickerExtension
                 {
                     _statusUpdater.Start();
                 }
+                tb.SaveConfig();
             }
             else
             {
