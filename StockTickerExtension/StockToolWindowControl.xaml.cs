@@ -358,6 +358,10 @@ namespace StockTickerExtension
 
             if (!CheckTradingTime())
             {
+                if(period == "Intraday" && DateTime.Now.TimeOfDay < new TimeSpan(9, 30, 0))
+                {
+                    return;
+                }
                 // 如果不在交易时间，则不启动监控，只获取一次数据
                 _monitorOnce = true;
             }
