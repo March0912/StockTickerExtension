@@ -55,6 +55,7 @@
       <DependentUpon>StockToolWindowControl.xaml</DependentUpon>
     </Compile>
     <Compile Include="Tool.cs" />
+    <Compile Include="UserConfig.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="source.extension.vsixmanifest">

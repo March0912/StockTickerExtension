@@ -31,7 +31,8 @@
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="0" HorizontalAlignment="Left">
                 <ComboBox x:Name="StockTypeComboBox" Width="80" SelectedIndex="0" Margin="6,0"/>
                 <TextBlock Text="Stock Code:" VerticalAlignment="Center" Margin="6,0"/>
-                <TextBox x:Name="CodeTextBox" Width="60" Text="301307" VerticalAlignment="Center" />
+                <ComboBox x:Name="CodeTextBox" Width="80" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
+                <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center"/>
                 <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80"/>
                 <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80"/>
                 <TextBlock x:Name="StockName" Text="" VerticalAlignment="Center" Foreground="Blue" Margin="6,0"/>
@@ -55,8 +56,8 @@
                 <TextBox x:Name="SharesBox" Width="80" Text="400" />
                 <TextBlock Text="Cost Price:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBox x:Name="CostBox" Width="60" Text="40.915" />
-                <TextBlock x:Name="PositionProfitText" Text="Total(￥): --" Margin="12,0"/>
-                <TextBlock x:Name="TodayProfitText" Text="Today(￥): --" Margin="12,0"/>
+                <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="12,0"/>
+                <TextBlock x:Name="TodayProfitText" Text="Today: --" Margin="12,0"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="2" HorizontalAlignment="Left">
                 <CheckBox x:Name="MA5" Content="MA5" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Black" />
