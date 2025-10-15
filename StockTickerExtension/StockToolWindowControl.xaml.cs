@@ -1,4 +1,5 @@
-﻿using Microsoft.VisualStudio.Shell;
+﻿using EnvDTE;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
 using System;
@@ -10,7 +11,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives; // for Thumb
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media; // for VisualTreeHelper
 using System.Windows.Threading;
 
 namespace StockTickerExtension
@@ -75,6 +79,13 @@ namespace StockTickerExtension
         YearlyK,
     };
 
+    public enum StockType : int
+    {
+        StockA,
+        StockHK,
+        StockUS
+    };
+
     public partial class StockToolWindowControl : UserControl
     {
         private readonly StockToolWindow _ownerPane;
@@ -84,12 +95,12 @@ namespace StockTickerExtension
         private DispatcherTimer _uiTimer;
 
         private List<string> _tradingMinutes;
-        private int _totalMinutes;
         private int _fetchIntervalSeconds = 5;
         private bool _monitoring = false;
         private bool _monitorOnce = false;
         private DateTime _currentDate;
         private CancellationTokenSource _kdjCts;
+        private StockType _stockType = StockType.StockA;
 
         public StockToolWindowControl(ToolWindowPane owner)
         {
@@ -98,7 +109,6 @@ namespace StockTickerExtension
             _ownerPane = owner as StockToolWindow;
             _currentDate = GetCurrentDate();
             _tradingMinutes = BuildTradingMinutes(_currentDate);
-            _totalMinutes = _tradingMinutes.Count;
 
             Init();
         }
@@ -188,11 +198,35 @@ namespace StockTickerExtension
             StartBtn_Click(null, null);
         }
 
+        private void StockTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (StockTypeComboBox.SelectedItem is ComboBoxItem item)
+            {
+                if (item.Content.ToString() == "Stock A")
+                {
+                    _stockType = StockType.StockA;
+                }
+                else if (item.Content.ToString() == "Stock HK")
+                {
+                    _stockType = StockType.StockHK;
+                }
+                else if (item.Content.ToString() == "Stock US")
+                {
+                    _stockType = StockType.StockUS;
+                }
+                _tradingMinutes = BuildTradingMinutes(_currentDate);
+            }
+        }
+
         private void Date_SelecteionChanged(object sender, SelectionChangedEventArgs e)
         {
             _currentDate = GetCurrentDate();
             _tradingMinutes = BuildTradingMinutes(_currentDate);
-            _totalMinutes = _tradingMinutes.Count;
+        }
+
+        private void ScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            e.Handled = false;
         }
 
         private void Init()
@@ -208,7 +242,7 @@ namespace StockTickerExtension
             MA30.IsEnabled = false;
             MA60.IsEnabled = false;
 
-            CodeTextBox.PreviewTextInput += CodeTextBox_PreviewTextInput;
+//             CodeTextBox.PreviewTextInput += CodeTextBox_PreviewTextInput;
             DataObject.AddPastingHandler(CodeTextBox, CodeTextBox_Pasting);
             // 当 UserControl 卸载（窗口关闭）时停止监控
             this.Unloaded += On_Unloaded;
@@ -217,6 +251,7 @@ namespace StockTickerExtension
             CurrentPrice.FontWeight = FontWeights.Bold;
             CurrentPrice.Foreground = Brushes.Blue;
 
+            InitStockTypeComboBox();
             InitPeriodComboBox();
             InitPriceChat();
 
@@ -224,6 +259,14 @@ namespace StockTickerExtension
         }
 
         private void InitPeriodComboBox()
+        {
+            StockTypeComboBox.Items.Add(new ComboBoxItem { Content = "Stock A" });
+            StockTypeComboBox.Items.Add(new ComboBoxItem { Content = "Stock HK" });
+            StockTypeComboBox.Items.Add(new ComboBoxItem { Content = "Stock US" });
+            StockTypeComboBox.SelectionChanged += StockTypeComboBox_SelectionChanged;
+        }
+
+        private void InitStockTypeComboBox()
         {
             PeriodComboBox.Items.Add(new ComboBoxItem { Content = "Intraday" });
             if (true)
@@ -241,7 +284,7 @@ namespace StockTickerExtension
         {
             WpfPlotPrice.Configuration.ScrollWheelZoom = false;
             WpfPlotPrice.Configuration.LeftClickDragPan = false;
-            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _totalMinutes - 1);
+            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
 
             WpfPlotVolume.Configuration.ScrollWheelZoom = false;
             WpfPlotVolume.Configuration.LeftClickDragPan = false;
@@ -272,18 +315,66 @@ namespace StockTickerExtension
         {
             var list = new List<string>();
 
-            var t = date.AddHours(9).AddMinutes(30);
-            var end = date.AddHours(11).AddMinutes(30);
-            while (t <= end) { list.Add(t.ToString("yyyy-MM-dd HH:mm")); t = t.AddMinutes(1); }
+            if (_stockType == StockType.StockA)
+            {
+                var t = date.AddHours(9).AddMinutes(30);
+                var end = date.AddHours(11).AddMinutes(30);
+                while (t <= end) 
+                { 
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1); 
+                }
 
-            t = date.AddHours(13);
-            end = date.AddHours(15);
-            while (t <= end) { list.Add(t.ToString("yyyy-MM-dd HH:mm")); t = t.AddMinutes(1); }
+                t = date.AddHours(13);
+                end = date.AddHours(15);
+                while (t <= end) 
+                {
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1);
+                }
+            }
+            else if( _stockType == StockType.StockHK)
+            {
+                var t = date.AddHours(9).AddMinutes(30);
+                var end = date.AddHours(12).AddMinutes(00);
+                while (t <= end)
+                {
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1);
+                }
 
+                t = date.AddHours(13);
+                end = date.AddHours(16);
+                while (t <= end)
+                {
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1);
+                }
+            }
+            else// if (_stockType == StockType.StockUS)
+            {
+                // 判断是否夏令时（美东时间）
+                var easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+                bool isDst = easternZone.IsDaylightSavingTime(DateTime.UtcNow);
+
+                // 夏令时：21:30 - 次日04:00
+                // 冬令时：22:30 - 次日05:00
+                DateTime start = isDst ? date.AddHours(21).AddMinutes(30) : date.AddHours(22).AddMinutes(30);
+                start = start.AddDays(-1);
+                DateTime end = isDst ? date.AddDays(1).AddHours(4) : date.AddDays(1).AddHours(5);
+                end = end.AddDays(-1);
+
+                var t = start;
+                while (t <= end)
+                {
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1);
+                }
+            }
             return list;
         }
 
-        private void UpdateVSStatus(double price, double changePercent, double positionProfit, double todayProfit)
+        private void UpdateVSStatus(string code, string name, double price, double changePercent, double positionProfit, double todayProfit)
         {
             // Dispatcher 保证在 UI 线程安全执行
             Dispatcher.Invoke(() =>
@@ -291,7 +382,7 @@ namespace StockTickerExtension
                 // 获取当前的父窗口（ToolWindowPane）
                 if (_ownerPane != null)
                 {
-                    _ownerPane.UpdateStatusInfo(price, changePercent, positionProfit, todayProfit);
+                    _ownerPane.UpdateStatusInfo(code, name, price, changePercent, positionProfit, todayProfit);
                 }
             });
         }
@@ -309,7 +400,6 @@ namespace StockTickerExtension
             });
         }
 
-
         bool IsWeekend(DateTime dt) => dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday;
 
         bool IsTradingTime(DateTime dt)
@@ -317,14 +407,45 @@ namespace StockTickerExtension
             if (IsWeekend(dt))
                 return false;
 
-            TimeSpan morningStart = new TimeSpan(9, 30, 0);
-            TimeSpan morningEnd = new TimeSpan(11, 30, 0);
-            TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
-            TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
+            if (_stockType == StockType.StockA)
+            {
+                TimeSpan morningStart = new TimeSpan(9, 30, 0);
+                TimeSpan morningEnd = new TimeSpan(11, 30, 0);
+                TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
+                TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
 
-            TimeSpan nowTime = dt.TimeOfDay;
-            return (nowTime >= morningStart && nowTime <= morningEnd) ||
-                   (nowTime >= afternoonStart && nowTime <= afternoonEnd);
+                TimeSpan nowTime = dt.TimeOfDay;
+                return (nowTime >= morningStart && nowTime <= morningEnd) ||
+                       (nowTime >= afternoonStart && nowTime <= afternoonEnd);
+            }
+            else if (_stockType == StockType.StockHK)
+            {
+                TimeSpan morningStart = new TimeSpan(9, 30, 0);
+                TimeSpan morningEnd = new TimeSpan(12, 00, 0);
+                TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
+                TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
+
+                TimeSpan nowTime = dt.TimeOfDay;
+                return (nowTime >= morningStart && nowTime <= morningEnd) ||
+                       (nowTime >= afternoonStart && nowTime <= afternoonEnd);
+            }
+            else// if (_stockType == StockType.StockUS)
+            {
+                // 判断是否夏令时（美东时间）
+                var easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+                bool isDst = easternZone.IsDaylightSavingTime(DateTime.UtcNow);
+
+                DateTime today = DateTime.Today;
+                // 夏令时：21:30 - 次日04:00
+                // 冬令时：22:30 - 次日05:00
+                DateTime start = isDst ? today.AddHours(21).AddMinutes(30) : today.AddHours(22).AddMinutes(30);
+                start = start.AddDays(-1);
+                DateTime end = isDst ? today.AddDays(1).AddHours(4) : today.AddDays(1).AddHours(5);
+                end = end.AddDays(-1);
+
+                TimeSpan nowTime = dt.TimeOfDay;
+                return (nowTime >= start.TimeOfDay && nowTime <= end.TimeOfDay);
+            }
         }
 
         bool CheckTradingTime()
@@ -443,13 +564,11 @@ namespace StockTickerExtension
             if (!_monitoring)
                 return;
 
-            var codeWithSuffix = NormalizeCode(code);
-
             while (!token.IsCancellationRequested)
             {
                 try
                 {
-                    var snap = await FetchKSnapshotAsync(codeWithSuffix, period);
+                    var snap = await FetchKSnapshot_Async(code, period);
                     if (snap != null)
                     {
                         snap.Code = code;
@@ -468,12 +587,12 @@ namespace StockTickerExtension
             }
         }
 
-		private async Task<StockSnapshot> FetchKSnapshotAsync(string codeWithSuffix, string period)
+		private async Task<StockSnapshot> FetchKSnapshot_Async(string code, string period)
         {
             if(period == "Intraday")
-               return await FetchSnapshotAsync(codeWithSuffix);
+               return await FetchSnapshot_Async(code);
 
-            var secid = GetSecId(codeWithSuffix);
+            var secid = GetSecId(code);
             if (secid == null) return null;
 
             var kType = PeriodToKType(period);
@@ -493,10 +612,12 @@ namespace StockTickerExtension
                 begStr = _currentDate.AddDays(-240).ToString("yyyyMMdd");
 
             string dateStr = _currentDate.ToString("yyyyMMdd");
-            string url = $"https://push2his.eastmoney.com/api/qt/stock/kline/get?secid={secid}&klt={kType}&fqt=1&beg={begStr}&end={dateStr}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57,f58";
+            string url = $"https://push2his.eastmoney.com/api/qt/stock/kline/get";
+            var parameters = $"?secid={secid}&klt={kType}&fqt=1&beg={begStr}&end={dateStr}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57,f58";
+            var requestUrl = url + parameters;
 
             string text;
-            using (var resp = await _http.GetAsync(url))
+            using (var resp = await _http.GetAsync(requestUrl))
             {
                 if (!resp.IsSuccessStatusCode) return null;
 
@@ -538,15 +659,15 @@ namespace StockTickerExtension
 			double changePercent = (count >= 2) ? (lastPrice - prices[count - 2]) / prices[count - 2] * 100 : 0;
 
 			// 计算严格窗口的全序列均线
-			double[] ma5full = ComputeExactWindowSMA(prices, 5);
-			double[] ma10full = ComputeExactWindowSMA(prices, 10);
-			double[] ma20full = ComputeExactWindowSMA(prices, 20);
-			double[] ma30full = ComputeExactWindowSMA(prices, 30);
-			double[] ma60full = ComputeExactWindowSMA(prices, 60);
+			double[] ma5full = Tool.ComputeExactWindowSMA(prices, 5);
+			double[] ma10full = Tool.ComputeExactWindowSMA(prices, 10);
+			double[] ma20full = Tool.ComputeExactWindowSMA(prices, 20);
+			double[] ma30full = Tool.ComputeExactWindowSMA(prices, 30);
+			double[] ma60full = Tool.ComputeExactWindowSMA(prices, 60);
 
             return new StockSnapshot
             {
-                Code = codeWithSuffix,
+                Code = code,
                 Name = name,
                 OpenPrice = openPrice,
                 Prices = prices,
@@ -566,12 +687,13 @@ namespace StockTickerExtension
             };
         }
 
-        private async Task<StockSnapshot> FetchSnapshotAsync(string codeWithSuffix)
+        private async Task<StockSnapshot> FetchSnapshot_Async(string code)
         {
-            var secid = GetSecId(codeWithSuffix);
+            var secid = GetSecId(code);
             if (secid == null) return null;
 
             var url = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
+
             var dateStr = _currentDate.ToString("yyyyMMdd");
             var parameters = $"?fields1=f1,f2,f3,f4,f5,f6,f7,f8&fields2=f51,f52,f53,f54,f55,f56,f57,f58&iscr=0&ndays=1&secid={secid}&ut=fa5fd1943c7b386f172d6893dbfba10b&trends={dateStr}";
             var requestUrl = url + parameters;
@@ -590,11 +712,11 @@ namespace StockTickerExtension
                 var trends = jobj["data"]["trends"].ToObject<string[]>();
                 if (trends == null || trends.Length == 0) return null;
 
-                var prices = Enumerable.Repeat(double.NaN, _totalMinutes).ToArray();
-                var avgPrices = Enumerable.Repeat(double.NaN, _totalMinutes).ToArray();
-                var vols = new double[_totalMinutes];
-                var buy = new double[_totalMinutes];
-                var sell = new double[_totalMinutes];
+                var prices = Enumerable.Repeat(double.NaN, _tradingMinutes.Count).ToArray();
+                var avgPrices = Enumerable.Repeat(double.NaN, _tradingMinutes.Count).ToArray();
+                var vols = new double[_tradingMinutes.Count];
+                var buy = new double[_tradingMinutes.Count];
+                var sell = new double[_tradingMinutes.Count];
 
                 var parsedRows = new List<(string time, double price, double vol, double avg)>();
                 foreach (var line in trends)
@@ -612,7 +734,7 @@ namespace StockTickerExtension
                 {
                     var r = parsedRows[i];
                     int idx = _tradingMinutes.IndexOf(r.time);
-                    if (idx < 0 || idx >= _totalMinutes)
+                    if (idx < 0 || idx >= _tradingMinutes.Count)
                         continue;
                     prices[idx] = r.price;
                     avgPrices[idx] = r.avg;
@@ -622,7 +744,7 @@ namespace StockTickerExtension
                 for (int i = 0; i < parsedRows.Count; i++)
                 {
                     int idx = _tradingMinutes.IndexOf(parsedRows[i].time);
-                    if (idx < 0 || idx >= _totalMinutes)
+                    if (idx < 0 || idx >= _tradingMinutes.Count)
                         continue;
                     if (i == 0)
                     {
@@ -665,6 +787,7 @@ namespace StockTickerExtension
 
                 return new StockSnapshot
                 {
+                    Code = code,
                     Name = name,
                     CurrentPrice = lastPrice,
                     Prices = prices,
@@ -677,19 +800,38 @@ namespace StockTickerExtension
             }
         }
 
-        private string NormalizeCode(string code)
+        private string GetSecId(string code)
         {
-            code = code.Trim();
-            if (code.EndsWith(".SZ", StringComparison.OrdinalIgnoreCase) || code.EndsWith(".SH", StringComparison.OrdinalIgnoreCase))
-                return code.ToUpper();
-            return code.StartsWith("6") ? code + ".SH" : code + ".SZ";
-        }
-
-        private string GetSecId(string codeWithSuffix)
-        {
-            if (codeWithSuffix.EndsWith(".SZ")) return "0." + codeWithSuffix.Replace(".SZ", "");
-            if (codeWithSuffix.EndsWith(".SH")) return "1." + codeWithSuffix.Replace(".SH", "");
-            return null;
+            string secId = code;
+            switch (_stockType)
+            {
+                case StockType.StockA:
+                    {
+                        if (code.StartsWith("3"))
+                        {
+                            secId = "0." + code;
+                        }
+                        else if (code.StartsWith("6") || code.StartsWith("0"))
+                        {
+                            secId = "1." + code;
+                        }
+                        break;
+                    }
+                case StockType.StockHK:
+                    {
+                        secId = "116." + code;
+                        break;
+                    }
+                case StockType.StockUS:
+                    {
+                        secId = "105." + code;
+                        break;
+                    }
+                default:
+                    secId = "0." + code;
+                    break;
+            }
+            return secId;
         }
 
         private void UiTimer_Tick(object sender, EventArgs e)
@@ -763,17 +905,17 @@ namespace StockTickerExtension
                 return;
 
             // 固定x轴范围为完整的交易时间范围，而不是根据数据点数量动态调整
-            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _totalMinutes - 1);
+            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
 
             // 使用完整的交易时间索引，而不是只使用有效数据点的索引
-            var xs = Enumerable.Range(0, _totalMinutes).Select(i => (double)i).ToArray();
+            var xs = Enumerable.Range(0, _tradingMinutes.Count).Select(i => (double)i).ToArray();
 
             // 创建完整的价格数组，包含NaN值用于没有数据的时间点
-            var fullPrices = new double[_totalMinutes];
-            var fullAvgPrices = new double[_totalMinutes];
+            var fullPrices = new double[_tradingMinutes.Count];
+            var fullAvgPrices = new double[_tradingMinutes.Count];
             
             // 将有效价格数据填充到对应的时间索引位置
-            for (int i = 0; i < snap.Prices.Length && i < _totalMinutes; i++)
+            for (int i = 0; i < snap.Prices.Length && i < _tradingMinutes.Count; i++)
             {
                 fullPrices[i] = snap.Prices[i];
                 fullAvgPrices[i] = snap.AvgPrices[i];
@@ -784,7 +926,7 @@ namespace StockTickerExtension
             var validPrices = new List<double>();
             var validAvgPrices = new List<double>();
             
-            for (int i = 0; i < _totalMinutes; i++)
+            for (int i = 0; i < _tradingMinutes.Count; i++)
             {
                 if (!double.IsNaN(fullPrices[i]))
                 {
@@ -801,14 +943,14 @@ namespace StockTickerExtension
             }
 
             // 创建完整的成交量数组，初始化为0
-            var fullBuyVolumes = new double[_totalMinutes];
-            var fullSellVolumes = new double[_totalMinutes];
+            var fullBuyVolumes = new double[_tradingMinutes.Count];
+            var fullSellVolumes = new double[_tradingMinutes.Count];
 
             // 成交量（右Y轴）
             if (snap.BuyVolumes != null && snap.SellVolumes != null)
             {
                 // 将有效成交量数据填充到对应的时间索引位置
-                for (int i = 0; i < snap.BuyVolumes.Length && i < _totalMinutes; i++)
+                for (int i = 0; i < snap.BuyVolumes.Length && i < _tradingMinutes.Count; i++)
                 {
                     // 确保不包含NaN值，将NaN替换为0
                     fullBuyVolumes[i] = double.IsNaN(snap.BuyVolumes[i]) ? 0 : snap.BuyVolumes[i];
@@ -822,7 +964,7 @@ namespace StockTickerExtension
                 barBuy.BorderLineWidth = 0; // 去掉边框
 
                 var barSell = WpfPlotPrice.Plot.AddBar(fullSellVolumes, xs);
-                barSell.FillColor = System.Drawing.Color.FromArgb(150, 0, 255, 0);
+                barSell.FillColor = System.Drawing.Color.FromArgb(200, 0, 255, 0);
                 barSell.YAxisIndex = 1;
                 barSell.BarWidth = 0.5; // 设置固定柱状图宽度
                 barSell.BorderLineWidth = 0; // 去掉边框
@@ -830,7 +972,17 @@ namespace StockTickerExtension
 
             // 设置坐标轴
             var dateStr = _currentDate.ToString("yyyy-MM-dd ");
-            var labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
+            string[] labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
+            if (_stockType == StockType.StockA)
+                labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
+            else if(_stockType == StockType.StockHK)
+                labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00", dateStr + "15:30", dateStr + "16:00" };
+            else
+            {
+                var dateStr0 = _currentDate.AddDays(-1).ToString("yyyy-MM-dd ");
+                labelTimes = new[] { dateStr0 + "21:30", dateStr0 + "22:00", dateStr0 + "22:30", dateStr0 + "23:00", dateStr0 + "23:30", dateStr + "00:00", dateStr + "00:30", dateStr + "01:00", dateStr + "01:30", dateStr + "02:00", dateStr + "02:30", dateStr + "03:00", dateStr + "03:30", dateStr + "04:00" };
+            }
+
             var ticks = new List<double>();
             var labels = new List<string>();
             foreach (var t in labelTimes)
@@ -846,7 +998,7 @@ namespace StockTickerExtension
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
             // 坐标轴名称
-            WpfPlotPrice.Plot.YLabel("Price(RMB)");
+            WpfPlotPrice.Plot.YLabel("Price");
             WpfPlotPrice.Plot.YAxis2.Label("Volume (Lots)");
 
             // 设置右轴显示
@@ -978,11 +1130,11 @@ namespace StockTickerExtension
             if (ticks.Count > 0)
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
-			WpfPlotPrice.Plot.YLabel("Price(RMB)");
+			WpfPlotPrice.Plot.YLabel("Price");
 
 			// --- 1.1) 计算并叠加 MA5 / MA10 / MA20 ---
 			// 优先使用预计算的严格窗口均线；若为空则退回本地计算
-			var ma5 = snap.MA5 ?? ComputeSimpleMovingAverage(closes, 5);
+			var ma5 = snap.MA5 ?? Tool.ComputeSimpleMovingAverage(closes, 5);
             // 过滤 NaN，仅绘制有效点，避免 ScottPlot 因 NaN 抛异常
             if (MA5.IsChecked == true)
             {
@@ -1004,7 +1156,7 @@ namespace StockTickerExtension
 				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Black, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
 			}
 
-            var ma10 = snap.MA10 ?? ComputeSimpleMovingAverage(closes, 10);
+            var ma10 = snap.MA10 ?? Tool.ComputeSimpleMovingAverage(closes, 10);
             if (MA10.IsChecked == true)
             {
                 var xList = new List<double>();
@@ -1025,7 +1177,7 @@ namespace StockTickerExtension
 				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Orange, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
 			}
 
-            var ma20 = snap.MA20 ?? ComputeSimpleMovingAverage(closes, 20);
+            var ma20 = snap.MA20 ?? Tool.ComputeSimpleMovingAverage(closes, 20);
             if(MA20.IsChecked == true)
             {
                 var xList = new List<double>();
@@ -1046,7 +1198,7 @@ namespace StockTickerExtension
 				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.MediumVioletRed, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
 			}
 
-            var ma30 = snap.MA30 ?? ComputeSimpleMovingAverage(closes, 30);
+            var ma30 = snap.MA30 ?? Tool.ComputeSimpleMovingAverage(closes, 30);
             if (MA30.IsChecked == true)
             {
                 var xList = new List<double>();
@@ -1067,7 +1219,7 @@ namespace StockTickerExtension
                 if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Green, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
             }
 
-            var ma60 = snap.MA60 ?? ComputeSimpleMovingAverage(closes, 60);
+            var ma60 = snap.MA60 ?? Tool.ComputeSimpleMovingAverage(closes, 60);
             if (MA60.IsChecked == true)
             {
                 var xList = new List<double>();
@@ -1179,18 +1331,18 @@ namespace StockTickerExtension
             if (!double.TryParse(SharesBox.Text, out double shares)) return;
             if (!double.TryParse(CostBox.Text, out double cost)) return;
             if (!double.TryParse(ChangePercentText.Text.TrimEnd('%'), out double change)) return;
-
+                        
             double currentPrice = double.Parse(CurrentPrice.Text);
             double positionProfit = (currentPrice - cost) * shares;
             double todayProfit = currentPrice * change * shares / 100;
 
-            PositionProfitText.Text = $"nrealized P/L: {positionProfit:F2}";
+            PositionProfitText.Text = $"Total: {positionProfit:F2}";
             PositionProfitText.Foreground = positionProfit > 0 ? Brushes.Red : Brushes.Green;
 
-            TodayProfitText.Text = $"Today's P/L: {todayProfit:F2}";
+            TodayProfitText.Text = $"Today: {todayProfit:F2}";
             TodayProfitText.Foreground = todayProfit > 0 ? Brushes.Red : Brushes.Green;
 
-            UpdateVSStatus(currentPrice, change, positionProfit, todayProfit);
+            UpdateVSStatus(CodeTextBox.Text, StockName.Text, currentPrice, change, positionProfit, todayProfit);
         }
 
         private void UpdateStatus(string text, Brush color = null)
@@ -1201,65 +1353,6 @@ namespace StockTickerExtension
                 StatusText.Foreground = color ?? Brushes.Gray;
             }));
         }
-
-		private static double[] ComputeSimpleMovingAverage(double[] source, int period)
-		{
-			if (source == null || source.Length == 0 || period <= 1)
-				return source?.ToArray() ?? Array.Empty<double>();
-
-			int n = source.Length;
-			double[] result = new double[n];
-			double windowSum = 0.0;
-			var window = new System.Collections.Generic.Queue<double>(period);
-
-			for (int i = 0; i < n; i++)
-			{
-				double v = source[i];
-				if (double.IsNaN(v))
-				{
-					result[i] = (i > 0) ? result[i - 1] : double.NaN;
-					continue;
-				}
-
-				window.Enqueue(v);
-				windowSum += v;
-				if (window.Count > period)
-					windowSum -= window.Dequeue();
-
-				int denom = Math.Min(i + 1, period);
-				result[i] = windowSum / denom;
-			}
-
-			return result;
-		}
-
-		private static double[] ComputeExactWindowSMA(double[] source, int period)
-		{
-			if (source == null || source.Length == 0 || period <= 0)
-				return source?.ToArray() ?? Array.Empty<double>();
-
-			int n = source.Length;
-			double[] result = new double[n];
-			for (int i = 0; i < n; i++) result[i] = double.NaN;
-
-			double windowSum = 0.0;
-			int start = 0;
-			for (int i = 0; i < n; i++)
-			{
-				double v = source[i];
-				if (double.IsNaN(v)) { start = i + 1; windowSum = 0; continue; }
-				windowSum += v;
-				if (i - start + 1 > period)
-				{
-					windowSum -= source[start];
-					start++;
-				}
-				if (i - start + 1 == period)
-					result[i] = windowSum / period;
-			}
-
-			return result;
-		}
 
         private DateTime GetCurrentDate()
         {
@@ -1284,7 +1377,7 @@ namespace StockTickerExtension
                 {
                     // 每分钟检测一次
                     await Task.Delay(TimeSpan.FromMinutes(5), token);
-                    var kSnap = await FetchKSnapshotAsync(NormalizeCode(code), "Daily K");
+                    var kSnap = await FetchKSnapshot_Async(code, "Daily K");
                     CheckKdjGoldenCross(kSnap);
                 }
                 catch (TaskCanceledException)
@@ -1302,8 +1395,8 @@ namespace StockTickerExtension
         {
             if (snap != null && snap.Prices != null && snap.Prices.Length >= 10)
             {
-                bool isGolden = HasKDJGoldenCross(snap.Prices, snap.HighPrices, snap.LowPrices);
-                bool isDeath = HasKDJDeadCross(snap.Prices, snap.HighPrices, snap.LowPrices);
+                bool isGolden = Tool.HasKDJGoldenCross(snap.Prices, snap.HighPrices, snap.LowPrices);
+                bool isDeath = Tool.HasKDJDeadCross(snap.Prices, snap.HighPrices, snap.LowPrices);
                 var t = DateTime.Now.ToString("hh:mm:ss");
 
                 if (isGolden)
@@ -1321,94 +1414,5 @@ namespace StockTickerExtension
             }
         }
 
-        /// <summary>
-        /// 检测KDJ金叉出现（上一根K<D，本根K≥D）
-        /// </summary>
-        private bool HasKDJGoldenCross(double[] closes, double[] highs, double[] lows)
-        {
-            if (closes == null || highs == null || lows == null || closes.Length < 10)
-                return false;
-
-            List<double> KList = new List<double>();
-            List<double> DList = new List<double>();
-            double K = 50, D = 50;
-
-            for (int i = 0; i < closes.Length; i++)
-            {
-                if (i < 8)
-                {
-                    KList.Add(K);
-                    DList.Add(D);
-                    continue;
-                }
-
-                double H9 = highs.Skip(Math.Max(0, i - 8)).Take(9).Max();
-                double L9 = lows.Skip(Math.Max(0, i - 8)).Take(9).Min();
-                double RSV = (H9 == L9) ? 50 : (closes[i] - L9) / (H9 - L9) * 100;
-
-                K = 2.0 / 3.0 * K + 1.0 / 3.0 * RSV;
-                D = 2.0 / 3.0 * D + 1.0 / 3.0 * K;
-
-                KList.Add(K);
-                DList.Add(D);
-            }
-
-            if (KList.Count >= 2)
-            {
-                double prevK = KList[KList.Count - 2];
-                double prevD = DList[KList.Count - 2];
-                double currK = KList[KList.Count - 1];
-                double currD = DList[KList.Count - 1];
-
-                if (prevK < prevD && currK >= currD)
-                    return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// 检测KDJ死叉出现（上一根K>D，本根K≤D）
-        /// </summary>
-        private bool HasKDJDeadCross(double[] closes, double[] highs, double[] lows)
-        {
-            if (closes == null || highs == null || lows == null || closes.Length < 10)
-                return false;
-
-            List<double> KList = new List<double>();
-            List<double> DList = new List<double>();
-            double K = 50, D = 50;
-
-            for (int i = 0; i < closes.Length; i++)
-            {
-                if (i < 8)
-                {
-                    KList.Add(K);
-                    DList.Add(D);
-                    continue;
-                }
-
-                double H9 = highs.Skip(Math.Max(0, i - 8)).Take(9).Max();
-                double L9 = lows.Skip(Math.Max(0, i - 8)).Take(9).Min();
-                double RSV = (H9 == L9) ? 50 : (closes[i] - L9) / (H9 - L9) * 100;
-
-                K = 2.0 / 3.0 * K + 1.0 / 3.0 * RSV;
-                D = 2.0 / 3.0 * D + 1.0 / 3.0 * K;
-
-                KList.Add(K);
-                DList.Add(D);
-            }
-
-            if (KList.Count >= 2)
-            {
-                double prevK = KList[KList.Count - 2];
-                double prevD = DList[KList.Count - 2];
-                double currK = KList[KList.Count - 1];
-                double currD = DList[KList.Count - 1];
-
-                if (prevK > prevD && currK <= currD)
-                    return true;
-            }
-            return false;
-        }
     }
 }
