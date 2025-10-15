@@ -4,22 +4,7 @@
         <Identity Id="StockTickerExtension.429be499-2ab4-4586-bdfa-3030cd46d30f" Version="1.0" Language="en-US" Publisher="March.XZY" />
         <DisplayName>StockWatcher</DisplayName>
         <Description xml:space="preserve">Stock Monitoring Assistant,Code by day, trade by tick.
-
-Display real-time stock prices, change percentages, and P/L information directly in the Visual Studio status bar.
-
-Support customizable refresh intervals; information updates dynamically without switching windows.
-
-Red for gains, green for losses, providing an intuitive view of market trends.
-
-Monitor multiple stocks simultaneously.
-
-Automatically clears status bar information when the tool window is closed, keeping the interface clean.
-
-Notes:
-
-Compatible with Visual Studio 2022 (Community / Professional / Enterprise).
-
-Future versions will add more configurable features, such as custom colors and stock list management.</Description>
+Pros watch the bull market closely.牛人紧盯牛市。</Description>
         <License>Resources\License.txt</License>
         <ReleaseNotes>Resources\ReleaseNotes.html</ReleaseNotes>
         <Icon>Resources\StockTicker.ico</Icon>
