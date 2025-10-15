@@ -13,7 +13,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives; // for Thumb
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media; // for VisualTreeHelper
 using System.Windows.Threading;
 
@@ -102,11 +101,11 @@ namespace StockTickerExtension
         private CancellationTokenSource _kdjCts;
         private StockType _stockType = StockType.StockA;
         
-        // K线图缩放相关字段
-        private int _klineStartIndex = 0;
-        private int _klineVisibleCount = 50;
-        private int _klineMinVisible = 10;
-        private int _klineMaxVisible = 200;
+        // K线图缩放和拖拽相关字段
+        private bool _isDragging = false;
+        private Point _lastMousePosition;
+        private double _dragStartX = 0;
+        private int _dragStartIndex = 0;
 
         public StockToolWindowControl(ToolWindowPane owner)
         {
@@ -198,10 +197,6 @@ namespace StockTickerExtension
                     WpfPlotVolume.Configuration.LeftClickDragPan = true;
                     WpfPlotVolume.Visibility = Visibility.Visible;
                     WpfPlotVolume.Render();
-                    
-                    // 重置K线缩放状态
-                    _klineStartIndex = 0;
-                    _klineVisibleCount = 50;
                 }
             }
 
@@ -264,7 +259,7 @@ namespace StockTickerExtension
             InitStockTypeComboBox();
             InitPeriodComboBox();
             InitPriceChat();
-            InitKLineZoom();
+            InitKLineInteractions();
 
             _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
         }
@@ -323,15 +318,21 @@ namespace StockTickerExtension
         }
 
         /// <summary>
-        /// 初始化K线图缩放功能
+        /// 初始化K线图交互功能
         /// </summary>
-        private void InitKLineZoom()
+        private void InitKLineInteractions()
         {
-            // 为价格图添加鼠标中键缩放事件
+            // 为价格图添加鼠标事件
             WpfPlotPrice.MouseWheel += OnKLineMouseWheel;
             WpfPlotPrice.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
             WpfPlotPrice.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
             WpfPlotPrice.MouseMove += OnKLineMouseMove;
+            
+            // 为成交量图添加相同的鼠标事件，实现联动
+            WpfPlotVolume.MouseWheel += OnKLineMouseWheel;
+            WpfPlotVolume.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
+            WpfPlotVolume.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
+            WpfPlotVolume.MouseMove += OnKLineMouseMove;
         }
 
         private List<string> BuildTradingMinutes(DateTime date)
@@ -1066,14 +1067,6 @@ namespace StockTickerExtension
             WpfPlotVolume.Visibility = Visibility.Visible;
 
             int count = snap.Prices.Length;
-            
-            // 初始化缩放状态（如果数据量变化或首次加载）
-            if (_klineStartIndex >= count || _klineVisibleCount > count)
-            {
-                _klineStartIndex = Math.Max(0, count - _klineVisibleCount);
-                _klineVisibleCount = Math.Min(_klineVisibleCount, count);
-            }
-            
             var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
 
 			// --- 1) 绘制 K 线（使用 ScottPlot 的 Candlesticks） ---
@@ -1086,7 +1079,7 @@ namespace StockTickerExtension
             try
             {
                 var ohlcs = new List<ScottPlot.OHLC>();
-                for (int i = _klineStartIndex; i < Math.Min(_klineStartIndex + _klineVisibleCount, count); i++)
+                for (int i = 0; i < count; i++)
                 {
                     if (!double.IsNaN(opens[i]) && !double.IsNaN(highs[i]) &&
                         !double.IsNaN(lows[i]) && !double.IsNaN(closes[i]))
@@ -1106,7 +1099,7 @@ namespace StockTickerExtension
             {
                 // 退回到手动绘制（以防 AddCandlesticks 不可用）
                 // 用矩形/线绘制每根蜡烛（保证实体从 open 到 close，而不是从 0 开始）
-                for (int i = _klineStartIndex; i < Math.Min(_klineStartIndex + _klineVisibleCount, count); i++)
+                for (int i = 0; i < count; i++)
                 {
                     double x = xs[i];
                     double open = opens[i];
@@ -1142,16 +1135,16 @@ namespace StockTickerExtension
                 }
             }
 
-            // X 轴对齐：根据缩放状态设置显示范围
-            double xMin = _klineStartIndex - 0.5;
-            double xMax = _klineStartIndex + _klineVisibleCount - 0.5;
+            // X 轴对齐：使每个 candle 在整数位置（0..count-1）居中
+            double xMin = -0.5;
+            double xMax = count - 0.5;
             WpfPlotPrice.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
 
             // 设置 X 轴刻度 - 使用时间轴标签
             string period = GetCurrentPeriod();
-            var (ticks, labels) = GenerateTimeAxisLabels(period, count, _klineStartIndex, _klineVisibleCount);
-            if (ticks.Length > 0)
-                WpfPlotPrice.Plot.XTicks(ticks, labels);
+            var (ticks, labels) = GenerateTimeAxisLabels(period, count);
+            if (ticks.Count > 0)
+                WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
 			WpfPlotPrice.Plot.YLabel("Price");
 
@@ -1166,14 +1159,14 @@ namespace StockTickerExtension
 				int n5 = Math.Min(xs.Length, ma5.Length);
 				int firstIdx = -1;
 				double firstVal = double.NaN;
-				for (int i = _klineStartIndex; i < Math.Min(_klineStartIndex + _klineVisibleCount, n5); i++)
+				for (int i = 0; i < n5; i++)
 				{
 					if (!double.IsNaN(ma5[i])) { firstIdx = i; firstVal = ma5[i]; break; }
 				}
 				if (firstIdx >= 0)
 				{
-					for (int i = _klineStartIndex; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-					for (int i = firstIdx; i < Math.Min(_klineStartIndex + _klineVisibleCount, n5); i++) { if (!double.IsNaN(ma5[i])) { xList.Add(xs[i]); yList.Add(ma5[i]); } }
+					for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+					for (int i = firstIdx; i < n5; i++) { if (!double.IsNaN(ma5[i])) { xList.Add(xs[i]); yList.Add(ma5[i]); } }
 				}
 				var xv = xList.ToArray(); var yv = yList.ToArray();
 				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Black, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
@@ -1187,14 +1180,14 @@ namespace StockTickerExtension
 				int n10 = Math.Min(xs.Length, ma10.Length);
 				int firstIdx = -1;
 				double firstVal = double.NaN;
-				for (int i = _klineStartIndex; i < Math.Min(_klineStartIndex + _klineVisibleCount, n10); i++)
+				for (int i = 0; i < n10; i++)
 				{
 					if (!double.IsNaN(ma10[i])) { firstIdx = i; firstVal = ma10[i]; break; }
 				}
 				if (firstIdx >= 0)
 				{
-					for (int i = _klineStartIndex; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-					for (int i = firstIdx; i < Math.Min(_klineStartIndex + _klineVisibleCount, n10); i++) { if (!double.IsNaN(ma10[i])) { xList.Add(xs[i]); yList.Add(ma10[i]); } }
+					for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+					for (int i = firstIdx; i < n10; i++) { if (!double.IsNaN(ma10[i])) { xList.Add(xs[i]); yList.Add(ma10[i]); } }
 				}
 				var xv = xList.ToArray(); var yv = yList.ToArray();
 				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Orange, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
@@ -1208,14 +1201,14 @@ namespace StockTickerExtension
 				int n20 = Math.Min(xs.Length, ma20.Length);
 				int firstIdx = -1;
 				double firstVal = double.NaN;
-				for (int i = _klineStartIndex; i < Math.Min(_klineStartIndex + _klineVisibleCount, n20); i++)
+				for (int i = 0; i < n20; i++)
 				{
 					if (!double.IsNaN(ma20[i])) { firstIdx = i; firstVal = ma20[i]; break; }
 				}
 				if (firstIdx >= 0)
 				{
-					for (int i = _klineStartIndex; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-					for (int i = firstIdx; i < Math.Min(_klineStartIndex + _klineVisibleCount, n20); i++) { if (!double.IsNaN(ma20[i])) { xList.Add(xs[i]); yList.Add(ma20[i]); } }
+					for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+					for (int i = firstIdx; i < n20; i++) { if (!double.IsNaN(ma20[i])) { xList.Add(xs[i]); yList.Add(ma20[i]); } }
 				}
 				var xv = xList.ToArray(); var yv = yList.ToArray();
 				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.MediumVioletRed, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
@@ -1229,14 +1222,14 @@ namespace StockTickerExtension
                 int n30 = Math.Min(xs.Length, ma30.Length);
                 int firstIdx = -1;
                 double firstVal = double.NaN;
-                for (int i = _klineStartIndex; i < Math.Min(_klineStartIndex + _klineVisibleCount, n30); i++)
+                for (int i = 0; i < n30; i++)
                 {
                     if (!double.IsNaN(ma30[i])) { firstIdx = i; firstVal = ma30[i]; break; }
                 }
                 if (firstIdx >= 0)
                 {
-                    for (int i = _klineStartIndex; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-                    for (int i = firstIdx; i < Math.Min(_klineStartIndex + _klineVisibleCount, n30); i++) { if (!double.IsNaN(ma30[i])) { xList.Add(xs[i]); yList.Add(ma30[i]); } }
+                    for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+                    for (int i = firstIdx; i < n30; i++) { if (!double.IsNaN(ma30[i])) { xList.Add(xs[i]); yList.Add(ma30[i]); } }
                 }
                 var xv = xList.ToArray(); var yv = yList.ToArray();
                 if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Green, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
@@ -1250,56 +1243,37 @@ namespace StockTickerExtension
                 int n60 = Math.Min(xs.Length, ma60.Length);
                 int firstIdx = -1;
                 double firstVal = double.NaN;
-                for (int i = _klineStartIndex; i < Math.Min(_klineStartIndex + _klineVisibleCount, n60); i++)
+                for (int i = 0; i < n60; i++)
                 {
                     if (!double.IsNaN(ma60[i])) { firstIdx = i; firstVal = ma60[i]; break; }
                 }
                 if (firstIdx >= 0)
                 {
-                    for (int i = _klineStartIndex; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-                    for (int i = firstIdx; i < Math.Min(_klineStartIndex + _klineVisibleCount, n60); i++) { if (!double.IsNaN(ma60[i])) { xList.Add(xs[i]); yList.Add(ma60[i]); } }
+                    for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
+                    for (int i = firstIdx; i < n60; i++) { if (!double.IsNaN(ma60[i])) { xList.Add(xs[i]); yList.Add(ma60[i]); } }
                 }
                 var xv = xList.ToArray(); var yv = yList.ToArray();
                 if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Gray, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
             }
 
-            // Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值（只计算可见范围）
-            var visibleHighs = new List<double>();
-            var visibleLows = new List<double>();
-            var visibleMa5 = new List<double>();
-            var visibleMa10 = new List<double>();
-            var visibleMa20 = new List<double>();
-            var visibleMa30 = new List<double>();
-            var visibleMa60 = new List<double>();
-            
-            for (int i = _klineStartIndex; i < Math.Min(_klineStartIndex + _klineVisibleCount, count); i++)
-            {
-                if (i < highs.Length && !double.IsNaN(highs[i])) visibleHighs.Add(highs[i]);
-                if (i < lows.Length && !double.IsNaN(lows[i])) visibleLows.Add(lows[i]);
-                if (i < ma5.Length && !double.IsNaN(ma5[i])) visibleMa5.Add(ma5[i]);
-                if (i < ma10.Length && !double.IsNaN(ma10[i])) visibleMa10.Add(ma10[i]);
-                if (i < ma20.Length && !double.IsNaN(ma20[i])) visibleMa20.Add(ma20[i]);
-                if (i < ma30.Length && !double.IsNaN(ma30[i])) visibleMa30.Add(ma30[i]);
-                if (i < ma60.Length && !double.IsNaN(ma60[i])) visibleMa60.Add(ma60[i]);
-            }
-            
+            // Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值
             double yHigh = new[]
 			{
-				visibleHighs.DefaultIfEmpty(0).Max(),
-				visibleMa5.DefaultIfEmpty(0).Max(),
-				visibleMa10.DefaultIfEmpty(0).Max(),
-				visibleMa20.DefaultIfEmpty(0).Max(),
-				visibleMa30.DefaultIfEmpty(0).Max(),
-				visibleMa60.DefaultIfEmpty(0).Max()
+				highs.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+				ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max()
 			}.Max();
 			double yLow = new[]
 			{
-				visibleLows.DefaultIfEmpty(0).Min(),
-				visibleMa5.DefaultIfEmpty(double.PositiveInfinity).Min(),
-				visibleMa10.DefaultIfEmpty(double.PositiveInfinity).Min(),
-				visibleMa20.DefaultIfEmpty(double.PositiveInfinity).Min(),
-				visibleMa30.DefaultIfEmpty(double.PositiveInfinity).Min(),
-				visibleMa60.DefaultIfEmpty(double.PositiveInfinity).Min()
+				lows.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Min(),
+				ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+				ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+				ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+				ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min()
 			}.Min();
             if (yHigh > yLow)
             {
@@ -1316,7 +1290,7 @@ namespace StockTickerExtension
             WpfPlotVolume.Plot.Clear();
             WpfPlotVolume.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
 
-            // 将成交量转换为"手"（如果你的数据是股数），这里除以100；若已经是手则把 /100 去掉
+            // 将成交量转换为“手”（如果你的数据是股数），这里除以100；若已经是手则把 /100 去掉
             double[] volsScaled = snap.Volumes?.Select(v => v).ToArray() ?? new double[count];
 
             // 保证 volsScaled 长度等于 count
@@ -1326,39 +1300,20 @@ namespace StockTickerExtension
                 for (int i = 0; i < count && i < volsScaled.Length; i++) tmp[i] = volsScaled[i];
                 volsScaled = tmp;
             }
-            
-            // 只绘制可见范围内的成交量
-            var visibleVols = new double[_klineVisibleCount];
-            var visibleBuyVols = new double[_klineVisibleCount];
-            var visibleSellVols = new double[_klineVisibleCount];
-            var visibleXs = new double[_klineVisibleCount];
-            
-            for (int i = 0; i < _klineVisibleCount; i++)
-            {
-                int dataIndex = _klineStartIndex + i;
-                if (dataIndex < count)
-                {
-                    visibleVols[i] = volsScaled[dataIndex];
-                    visibleXs[i] = xs[dataIndex];
-                    if (snap.BuyVolumes != null && snap.SellVolumes != null && 
-                        dataIndex < snap.BuyVolumes.Length && dataIndex < snap.SellVolumes.Length)
-                    {
-                        visibleBuyVols[i] = snap.BuyVolumes[dataIndex];
-                        visibleSellVols[i] = snap.SellVolumes[dataIndex];
-                    }
-                }
-            }
 
             // 为成交量设置颜色：用买/卖分开绘制（若有），否则按涨跌绘色
             if (snap.BuyVolumes != null && snap.SellVolumes != null && snap.BuyVolumes.Length == count && snap.SellVolumes.Length == count)
             {
                 // 使用 buy/sell 绘制两组柱
-                var barBuy = WpfPlotVolume.Plot.AddBar(visibleBuyVols, visibleXs);
+                var buyScaled = snap.BuyVolumes.Select(v => v).ToArray();
+                var sellScaled = snap.SellVolumes.Select(v =>v).ToArray();
+
+                var barBuy = WpfPlotVolume.Plot.AddBar(buyScaled, xs);
                 barBuy.FillColor = System.Drawing.Color.Red;
                 barBuy.BarWidth = 0.5;
                 barBuy.BorderLineWidth = 0;
 
-                var barSell = WpfPlotVolume.Plot.AddBar(visibleSellVols, visibleXs);
+                var barSell = WpfPlotVolume.Plot.AddBar(sellScaled, xs);
                 barSell.FillColor = System.Drawing.Color.Green;
                 barSell.BarWidth = 0.5;
                 barSell.BorderLineWidth = 0;
@@ -1366,7 +1321,7 @@ namespace StockTickerExtension
             else
             {
                 // 单组成交量，颜色依据当天涨跌（或全部灰色）
-                var bars = WpfPlotVolume.Plot.AddBar(visibleVols, visibleXs);
+                var bars = WpfPlotVolume.Plot.AddBar(volsScaled, xs);
                 bars.FillColor = System.Drawing.Color.Gray;
                 bars.BarWidth = 0.5;
                 bars.BorderLineWidth = 0;
@@ -1374,8 +1329,12 @@ namespace StockTickerExtension
 
             WpfPlotVolume.Plot.YLabel("Volume (Lots)");
 
+            // 为成交量图设置相同的时间轴标签
+            if (ticks.Count > 0)
+                WpfPlotVolume.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+
             // 给成交量 Y 轴加一点上边距
-            double maxVol = visibleVols.DefaultIfEmpty(0).Max();
+            double maxVol = volsScaled.DefaultIfEmpty(0).Max();
             WpfPlotVolume.Plot.SetAxisLimitsY(0, Math.Max(1e-6, maxVol * 1.2)); // 提高 20%
 
             // 让两个图的 X 轴范围一致（关键）
@@ -1444,27 +1403,25 @@ namespace StockTickerExtension
         }
 
         /// <summary>
-        /// 根据K线周期和缩放级别生成时间轴标签
+        /// 根据K线周期生成时间轴标签
         /// </summary>
         /// <param name="period">K线周期</param>
         /// <param name="dataCount">数据点数量</param>
-        /// <param name="startIndex">起始索引</param>
-        /// <param name="visibleCount">可见数据点数量</param>
         /// <returns>时间轴标签信息</returns>
-        private (double[] ticks, string[] labels) GenerateTimeAxisLabels(string period, int dataCount, int startIndex, int visibleCount)
+        private (List<double> ticks, List<string> labels) GenerateTimeAxisLabels(string period, int dataCount)
         {
             var ticks = new List<double>();
             var labels = new List<string>();
             
-            // 根据可见数据点数量确定标签密度
-            int labelInterval = Math.Max(1, visibleCount / 8); // 最多显示8个标签
+            // 根据数据点数量确定标签密度
+            int labelInterval = Math.Max(1, dataCount / 8); // 最多显示8个标签
             
             // 根据不同的K线周期生成时间标签
             switch (period)
             {
                 case "Daily K":
                     // 日K线：显示日期，格式为 MM/dd
-                    for (int i = startIndex; i < dataCount && i < startIndex + visibleCount; i += labelInterval)
+                    for (int i = 0; i < dataCount; i += labelInterval)
                     {
                         // 从当前日期往前推算
                         DateTime date = _currentDate.AddDays(-(dataCount - 1 - i));
@@ -1474,8 +1431,8 @@ namespace StockTickerExtension
                     break;
                     
                 case "Weekly K":
-                    // 周K线：显示周，格式为 yyyy/MM/dd
-                    for (int i = startIndex; i < dataCount && i < startIndex + visibleCount; i += labelInterval)
+                    // 周K线：显示周，格式为 MM/dd
+                    for (int i = 0; i < dataCount; i += labelInterval)
                     {
                         DateTime date = _currentDate.AddDays(-(dataCount - 1 - i) * 7);
                         ticks.Add(i);
@@ -1485,7 +1442,7 @@ namespace StockTickerExtension
                     
                 case "Monthly K":
                     // 月K线：显示月份，格式为 yyyy/MM
-                    for (int i = startIndex; i < dataCount && i < startIndex + visibleCount; i += labelInterval)
+                    for (int i = 0; i < dataCount; i += labelInterval)
                     {
                         DateTime date = _currentDate.AddMonths(-(dataCount - 1 - i));
                         ticks.Add(i);
@@ -1495,7 +1452,7 @@ namespace StockTickerExtension
                     
                 case "Quarterly K":
                     // 季K线：显示季度，格式为 yyyy/Q
-                    for (int i = startIndex; i < dataCount && i < startIndex + visibleCount; i += labelInterval)
+                    for (int i = 0; i < dataCount; i += labelInterval)
                     {
                         DateTime date = _currentDate.AddMonths(-(dataCount - 1 - i) * 3);
                         ticks.Add(i);
@@ -1505,7 +1462,7 @@ namespace StockTickerExtension
                     
                 case "Yearly K":
                     // 年K线：显示年份，格式为 yyyy
-                    for (int i = startIndex; i < dataCount && i < startIndex + visibleCount; i += labelInterval)
+                    for (int i = 0; i < dataCount; i += labelInterval)
                     {
                         DateTime date = _currentDate.AddYears(-(dataCount - 1 - i));
                         ticks.Add(i);
@@ -1515,7 +1472,7 @@ namespace StockTickerExtension
                     
                 default:
                     // 默认显示索引
-                    for (int i = startIndex; i < dataCount && i < startIndex + visibleCount; i += labelInterval)
+                    for (int i = 0; i < dataCount; i += labelInterval)
                     {
                         ticks.Add(i);
                         labels.Add(i.ToString());
@@ -1523,13 +1480,8 @@ namespace StockTickerExtension
                     break;
             }
             
-            return (ticks.ToArray(), labels.ToArray());
+            return (ticks, labels);
         }
-
-        // K线图缩放相关字段
-        private bool _isKLineDragging = false;
-        private Point _lastKLineMousePosition;
-        private int _dragStartKLineIndex = 0;
 
         /// <summary>
         /// K线图鼠标滚轮事件 - 缩放
@@ -1538,27 +1490,37 @@ namespace StockTickerExtension
         {
             if (GetChatType() == ChartType.Intraday) return; // 分时图不处理缩放
             
-            // 计算鼠标位置对应的K线索引
-            Point mousePos = e.GetPosition(WpfPlotPrice);
-            double xRatio = mousePos.X / WpfPlotPrice.ActualWidth;
-            int centerIndex = _klineStartIndex + (int)(xRatio * _klineVisibleCount);
+            // 获取事件来源的控件
+            var sourceControl = sender as ScottPlot.WpfPlot;
+            if (sourceControl == null) return;
             
-            // 缩放
-            int delta = e.Delta > 0 ? -1 : 1;
-            int newVisibleCount = Math.Max(_klineMinVisible, Math.Min(_klineMaxVisible, _klineVisibleCount - delta));
+            // 获取当前X轴范围
+            var xLimits = WpfPlotPrice.Plot.GetAxisLimits();
+            double currentRange = xLimits.XMax - xLimits.XMin;
             
-            if (newVisibleCount != _klineVisibleCount)
-            {
-                _klineVisibleCount = newVisibleCount;
-                
-                // 保持缩放中心
-                _klineStartIndex = centerIndex - _klineVisibleCount / 2;
-                if (_queue.Count > 0 && _queue.TryPeek(out var snap))
-                {
-                    _klineStartIndex = Math.Max(0, Math.Min(_klineStartIndex, snap.Prices.Length - _klineVisibleCount));
-                    DrawKLineChart(snap);
-                }
-            }
+            // 计算鼠标位置在X轴上的比例
+            Point mousePos = e.GetPosition(sourceControl);
+            double xRatio = mousePos.X / sourceControl.ActualWidth;
+            double mouseX = xLimits.XMin + xRatio * currentRange;
+            
+            // 缩放因子
+            double zoomFactor = e.Delta > 0 ? 0.8 : 1.25;
+            double newRange = currentRange * zoomFactor;
+            
+            // 限制缩放范围
+            newRange = Math.Max(5, Math.Min(newRange, 1000));
+            
+            // 计算新的X轴范围，以鼠标位置为中心
+            double newXMin = mouseX - (mouseX - xLimits.XMin) * (newRange / currentRange);
+            double newXMax = mouseX + (xLimits.XMax - mouseX) * (newRange / currentRange);
+            
+            // 应用新的X轴范围到两个图表
+            WpfPlotPrice.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
+            WpfPlotVolume.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
+            
+            // 重新渲染
+            WpfPlotPrice.Render();
+            WpfPlotVolume.Render();
         }
 
         /// <summary>
@@ -1568,10 +1530,19 @@ namespace StockTickerExtension
         {
             if (GetChatType() == ChartType.Intraday) return; // 分时图不处理拖拽
             
-            _isKLineDragging = true;
-            _lastKLineMousePosition = e.GetPosition(WpfPlotPrice);
-            _dragStartKLineIndex = _klineStartIndex;
-            WpfPlotPrice.CaptureMouse();
+            // 获取事件来源的控件
+            var sourceControl = sender as ScottPlot.WpfPlot;
+            if (sourceControl == null) return;
+            
+            _isDragging = true;
+            _lastMousePosition = e.GetPosition(sourceControl);
+            _dragStartX = _lastMousePosition.X;
+            
+            // 获取当前X轴范围
+            var xLimits = WpfPlotPrice.Plot.GetAxisLimits();
+            _dragStartIndex = (int)xLimits.XMin;
+            
+            sourceControl.CaptureMouse();
         }
 
         /// <summary>
@@ -1581,8 +1552,12 @@ namespace StockTickerExtension
         {
             if (GetChatType() == ChartType.Intraday) return;
             
-            _isKLineDragging = false;
-            WpfPlotPrice.ReleaseMouseCapture();
+            // 获取事件来源的控件
+            var sourceControl = sender as ScottPlot.WpfPlot;
+            if (sourceControl == null) return;
+            
+            _isDragging = false;
+            sourceControl.ReleaseMouseCapture();
         }
 
         /// <summary>
@@ -1590,27 +1565,37 @@ namespace StockTickerExtension
         /// </summary>
         private void OnKLineMouseMove(object sender, MouseEventArgs e)
         {
-            if (!_isKLineDragging || GetChatType() == ChartType.Intraday) return;
+            if (!_isDragging || GetChatType() == ChartType.Intraday) return;
             
-            Point currentPos = e.GetPosition(WpfPlotPrice);
-            double deltaX = currentPos.X - _lastKLineMousePosition.X;
+            // 获取事件来源的控件
+            var sourceControl = sender as ScottPlot.WpfPlot;
+            if (sourceControl == null) return;
             
-            // 计算新的起始索引
-            int deltaIndex = (int)(deltaX / (WpfPlotPrice.ActualWidth / _klineVisibleCount));
-            int newStartIndex = _dragStartKLineIndex - deltaIndex;
+            Point currentPos = e.GetPosition(sourceControl);
+            double deltaX = currentPos.X - _lastMousePosition.X;
             
-            // 限制范围
-            int maxStartIndex = 0;
-            if (_queue.Count > 0 && _queue.TryPeek(out var snap))
+            if (Math.Abs(deltaX) > 1) // 避免微小移动
             {
-                maxStartIndex = snap.Prices.Length - _klineVisibleCount;
-                newStartIndex = Math.Max(0, Math.Min(newStartIndex, maxStartIndex));
+                // 获取当前X轴范围
+                var xLimits = WpfPlotPrice.Plot.GetAxisLimits();
+                double currentRange = xLimits.XMax - xLimits.XMin;
                 
-                if (newStartIndex != _klineStartIndex)
-                {
-                    _klineStartIndex = newStartIndex;
-                    DrawKLineChart(snap);
-                }
+                // 计算移动距离对应的X轴偏移
+                double xOffset = -(deltaX / sourceControl.ActualWidth) * currentRange;
+                
+                // 计算新的X轴范围
+                double newXMin = xLimits.XMin + xOffset;
+                double newXMax = xLimits.XMax + xOffset;
+                
+                // 应用新的X轴范围到两个图表
+                WpfPlotPrice.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
+                WpfPlotVolume.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
+                
+                // 重新渲染
+                WpfPlotPrice.Render();
+                WpfPlotVolume.Render();
+                
+                _lastMousePosition = currentPos;
             }
         }
 
