@@ -1,18 +1,24 @@
-﻿using Microsoft.VisualStudio.Shell;
+﻿using Microsoft.VisualStudio.PlatformUI;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
+using ScottPlot.Plottable;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media; // for VisualTreeHelper
+using System.Windows.Media;
+using System.Windows.Shapes;
 using System.Windows.Threading;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
 
 namespace StockTickerExtension
 {
@@ -66,7 +72,7 @@ namespace StockTickerExtension
 		public double[] MA60 { get; set; }
     };
 
-    public enum ChartType
+    public enum PeriodType
     {
         Intraday = 0,
         DailyK,
@@ -99,10 +105,13 @@ namespace StockTickerExtension
         private DateTime _currentDate;
         private CancellationTokenSource _kdjCts;
         private StockType _stockType = StockType.StockA;
-        
+        StockSnapshot _currentSnapshot;
+        private Crosshair _crosshair;
+
+
         // K线图缩放和拖拽相关字段
         private bool _isDragging = false;
-        private Point _lastMousePosition;
+        private System.Windows.Point _lastMousePosition;
         private double _dragStartX = 0;
         private int _dragStartIndex = 0;
 
@@ -112,7 +121,6 @@ namespace StockTickerExtension
         public StockToolWindowControl(ToolWindowPane owner)
         {
             InitializeComponent();
-
             _ownerPane = owner as StockToolWindow;
 
             Init();
@@ -149,8 +157,6 @@ namespace StockTickerExtension
 
         private void On_Unloaded(object sender, RoutedEventArgs e)
         {
-            SaveConfig();
-
             if (AutoStopCheckBox.IsChecked == true)
             {
                 StopMonitoring();
@@ -160,7 +166,7 @@ namespace StockTickerExtension
 
         private void PeriodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (PeriodComboBox.SelectedIndex == (int)ChartType.Intraday)
+            if (PeriodComboBox.SelectedIndex == (int)PeriodType.Intraday)
             {
                 DatePickerControl.IsEnabled = false;
                 DatePickerControl.SelectedDate = DateTime.Today;
@@ -174,11 +180,11 @@ namespace StockTickerExtension
                 WpfPlotPrice.Plot.Clear();
                 WpfPlotPrice.Configuration.ScrollWheelZoom = false;
                 WpfPlotPrice.Configuration.LeftClickDragPan = false;
-                WpfPlotVolume.Configuration.ScrollWheelZoom = false;
-                WpfPlotVolume.Configuration.LeftClickDragPan = false;
                 WpfPlotPrice.Render();
 
                 WpfPlotVolume.Visibility = Visibility.Hidden;
+                WpfPlotVolume.Configuration.ScrollWheelZoom = false;
+                WpfPlotVolume.Configuration.LeftClickDragPan = false;
                 WpfPlotVolume.Render();
             }
             else
@@ -190,12 +196,18 @@ namespace StockTickerExtension
                 MA30.IsEnabled = true;
                 MA60.IsEnabled = true;
 
-                WpfPlotPrice.Configuration.ScrollWheelZoom = true;
-                WpfPlotPrice.Configuration.LeftClickDragPan = true;
+                MA5.IsChecked = _configManager.Config.MA5Checked;
+                MA10.IsChecked = _configManager.Config.MA10Checked;
+                MA20.IsChecked = _configManager.Config.MA20Checked;
+                MA30.IsChecked = _configManager.Config.MA30Checked;
+                MA60.IsChecked = _configManager.Config.MA60Checked;
+
+                WpfPlotPrice.Configuration.ScrollWheelZoom = false;
+                WpfPlotPrice.Configuration.LeftClickDragPan = false;
                 WpfPlotPrice.Render();
 
-                WpfPlotVolume.Configuration.ScrollWheelZoom = true;
-                WpfPlotVolume.Configuration.LeftClickDragPan = true;
+                WpfPlotVolume.Configuration.ScrollWheelZoom = false;
+                WpfPlotVolume.Configuration.LeftClickDragPan = false;
                 WpfPlotVolume.Visibility = Visibility.Visible;
                 WpfPlotVolume.Render();
             }
@@ -246,7 +258,7 @@ namespace StockTickerExtension
                     }
                     else
                     {
-                        UpdateStatus("Please enter a stock code.", Brushes.Red);
+                        UpdateStatus("Please enter a stock code.", System.Windows.Media.Brushes.Red);
                     }
                 }
             }
@@ -269,6 +281,8 @@ namespace StockTickerExtension
         {
             _configManager.Load();
 
+            SharesBox.Text = _configManager.Config.LastShares.ToString();
+            CostBox.Text = _configManager.Config.LastCostPrices.ToString();
             AutoStopCheckBox.IsChecked = _configManager.Config.AutoStopOnClose;
             MA5.IsChecked = _configManager.Config.MA5Checked;
             MA10.IsChecked = _configManager.Config.MA10Checked;
@@ -292,8 +306,8 @@ namespace StockTickerExtension
             this.Unloaded += On_Unloaded;
             DatePickerControl.SelectedDateChanged += Date_SelecteionChanged;
 
-            CurrentPrice.FontWeight = FontWeights.Bold;
-            CurrentPrice.Foreground = Brushes.Blue;
+            CurrentPriceText.FontWeight = FontWeights.Bold;
+            CurrentPriceText.Foreground = System.Windows.Media.Brushes.Blue;
 
             InitCodeTextBox();
             InitStockTypeComboBox();
@@ -303,6 +317,7 @@ namespace StockTickerExtension
             _tradingMinutes = BuildTradingMinutes(_currentDate);
 
             InitPriceChat();
+            InitUIColor();
 
             _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
         }
@@ -325,9 +340,9 @@ namespace StockTickerExtension
 
         private void InitStockTypeComboBox()
         {
-            StockTypeComboBox.Items.Add("Stock A");
-            StockTypeComboBox.Items.Add("Stock HK");
-            StockTypeComboBox.Items.Add("Stock US");
+            StockTypeComboBox.Items.Add("A-shares");
+            StockTypeComboBox.Items.Add("HK stocks");
+            StockTypeComboBox.Items.Add("US stocks");
 
             StockTypeComboBox.SelectedIndex = (int)_configManager.Config.LastStockType;
             _stockType = _configManager.Config.LastStockType;
@@ -359,6 +374,17 @@ namespace StockTickerExtension
             WpfPlotPrice.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
             WpfPlotPrice.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
             WpfPlotPrice.MouseMove += OnKLineMouseMove;
+            WpfPlotPrice.MouseLeave += OnWpfPlotPrice_MouseLeave;
+
+            // 初始化十字线（只创建一次）
+            if (_crosshair == null)
+            {
+                _crosshair = WpfPlotPrice.Plot.AddCrosshair(0, 0);
+                _crosshair.IsVisible = false;
+                _crosshair.LineColor = System.Drawing.Color.Red;
+                _crosshair.LineWidth = 1;
+                _crosshair.Color = System.Drawing.Color.Red;
+            }
 
             WpfPlotVolume.Configuration.ScrollWheelZoom = false;
             WpfPlotVolume.Configuration.LeftClickDragPan = false;
@@ -389,6 +415,111 @@ namespace StockTickerExtension
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
             WpfPlotVolume.Visibility = Visibility.Hidden;
+        }
+
+        private void InitUIColor()
+        {
+            this.Loaded += (s, e) =>
+            {
+                ApplyThemeToAllControls(this);
+                VSColorTheme.ThemeChanged += _ => Dispatcher.Invoke(() => ApplyThemeToAllControls(this));
+            };
+        }
+
+        private void ApplyThemeToAllControls(DependencyObject obj)
+        {
+            var fgColor0 = VSColorTheme.GetThemedColor(EnvironmentColors.ToolWindowTextColorKey);
+            var fgColor = System.Windows.Media.Color.FromArgb(fgColor0.A, fgColor0.R, fgColor0.G, fgColor0.B);
+
+            var bgColor0 = VSColorTheme.GetThemedColor(EnvironmentColors.ToolWindowBackgroundColorKey);
+            var bgColor = System.Windows.Media.Color.FromArgb(bgColor0.A, bgColor0.R, bgColor0.G, bgColor0.B);
+
+            var bdColor0 = VSColorTheme.GetThemedColor(EnvironmentColors.ToolWindowBorderColorKey);
+            var bdColor = System.Windows.Media.Color.FromArgb(bgColor0.A, bdColor0.R, bdColor0.G, bdColor0.B);
+
+            var fgBrush = new SolidColorBrush(fgColor);
+            var bgBrush = new SolidColorBrush(bgColor);
+            var bdBrush = new SolidColorBrush(bdColor);
+            
+            // 设置当前控件
+            if (obj is Control ctrl)
+            {
+                ctrl.Background = bgBrush;
+                ctrl.Foreground = fgBrush;
+
+                if (ctrl is ComboBox combo)
+                {
+                    combo.Background = bgBrush;
+                    combo.BorderBrush = bdBrush;
+                    // 下拉项的背景色需要通过 ItemContainerStyle 改
+                    combo.ItemContainerStyle = new Style(typeof(ComboBoxItem))
+                    {
+                        Setters =
+                        {
+                            new Setter(ComboBoxItem.BackgroundProperty, new SolidColorBrush(bgColor)),
+                            new Setter(ComboBoxItem.ForegroundProperty, new SolidColorBrush(fgColor)),
+                            new Setter(ComboBoxItem.BorderBrushProperty, new SolidColorBrush(bgColor))
+                        }
+                    };
+                    combo.UpdateLayout();
+                }
+                else if (ctrl is ScottPlot.WpfPlot wpfPlot)
+                {
+                    var bdColor1 = System.Drawing.Color.FromArgb(80, bdColor0.R, bdColor0.G, bdColor0.B);
+                    var fgColor1 = System.Drawing.Color.FromArgb(150, fgColor0.R, fgColor0.G, fgColor0.B);
+                    wpfPlot.Plot.Style(figureBackground: bgColor0,
+                                        dataBackground: bgColor0,
+                                        grid: bdColor1,
+                                        tick: fgColor1,                                        
+                                        axisLabel: fgColor0,
+                                        titleLabel: fgColor0);
+                    wpfPlot.Refresh();
+                }
+                else if(ctrl is CheckBox cb)
+                {
+                    cb.Foreground = fgBrush;
+                    if (bgColor0.Name.ToLower() == "ff1f1f1f")
+                    {
+                        cb.ApplyTemplate();
+                        ApplyThemeToCheckBoxChildren(cb);
+                    }
+                }
+            }
+            else if (obj is TextBlock tb)
+            {
+//              tb.Background = bgBrush;
+                tb.Foreground = fgBrush;
+            }            
+            else if (obj is Border bd)
+            {
+                bd.Background = bgBrush;
+                bd.BorderBrush = bdBrush;
+            }
+
+            // 递归对子控件应用
+            int count = VisualTreeHelper.GetChildrenCount(obj);
+            for (int i = 0; i < count; i++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(obj, i);
+                ApplyThemeToAllControls(child);
+            }
+        }
+
+        private void ApplyThemeToCheckBoxChildren(DependencyObject obj)
+        {
+            if (obj is Path ph)
+            {
+                ph.Fill = new SolidColorBrush(Colors.White);
+            }
+            else
+            {
+                int count = VisualTreeHelper.GetChildrenCount(obj);
+                for (int i = 0; i < count; i++)
+                {
+                    DependencyObject child = VisualTreeHelper.GetChild(obj, i);
+                    ApplyThemeToCheckBoxChildren(child);
+                }
+            }
         }
 
         private List<string> BuildTradingMinutes(DateTime date)
@@ -533,7 +664,7 @@ namespace StockTickerExtension
             var code = CodeTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(code))
             {
-                UpdateStatus("Error: Please enter a stock code", Brushes.Red);
+                UpdateStatus("Error: Please enter a stock code", System.Windows.Media.Brushes.Red);
                 return false;
             }
 
@@ -541,7 +672,7 @@ namespace StockTickerExtension
             if (!IsTradingTime(DateTime.Now))
             {
                 // 收盘后（15:00之后）允许启动，并显示当日完整分时数据
-                UpdateStatus("Currently outside trading hours", Brushes.Red); 
+                UpdateStatus("Currently outside trading hours", System.Windows.Media.Brushes.Red); 
                 return false;
             }
             return true;
@@ -549,10 +680,10 @@ namespace StockTickerExtension
 
         private void StartMonitoring()
         {
-            string period = PeriodComboBox.SelectedItem.ToString();
+            PeriodType period = (PeriodType)PeriodComboBox.SelectedIndex;
             if (!CheckTradingTime())
             {
-                if(period == "Intraday" && DateTime.Now.TimeOfDay < new TimeSpan(9, 30, 0))
+                if(period == PeriodType.Intraday && DateTime.Now.TimeOfDay < new TimeSpan(9, 30, 0))
                 {
                     return;
                 }
@@ -568,7 +699,7 @@ namespace StockTickerExtension
             _ =Task.Run(() => MonitorLoopAsync(code, period, _cts.Token));
 
             // ✅ 如果是分时图，则同时启动金叉监控线程
-            if (period == "Intraday")
+            if (period == PeriodType.Intraday)
             {
                 _kdjCts = new CancellationTokenSource();
                 if (!_monitorOnce)
@@ -578,7 +709,7 @@ namespace StockTickerExtension
             }
 
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
-            UpdateStatus("", Brushes.Blue);
+            UpdateStatus("", System.Windows.Media.Brushes.Blue);
            
             StartBtn.IsEnabled = false;
             StopBtn.IsEnabled = true;
@@ -601,38 +732,38 @@ namespace StockTickerExtension
             _kdjCts?.Cancel();
             _kdjCts = null;
 
-            UpdateStatus("Conitoring stopped", Brushes.Blue);
+            UpdateStatus("Conitoring stopped", System.Windows.Media.Brushes.Blue);
             if (_uiTimer.IsEnabled) _uiTimer.Stop();
         }
 
-        private string PeriodToKType(string period)
+        private string PeriodToKType(PeriodType period)
         {
             string kType;
             switch (period)
             {
-                case "Daily K":
+                case PeriodType.DailyK:
                     kType = "101";
                     break;
-                case "Weekly K":
+                case PeriodType.WeeklyK:
                     kType = "102";
                     break;
-                case "Monthly K":
+                case PeriodType.MonthlyK:
                     kType = "103";
                     break;
-                case "Quarterly K":
+                case PeriodType.QuarterlyK:
                     kType = "104";
                     break;
-                case "Yearly K":
+                case PeriodType.YearlyK:
                     kType = "105";
                     break;
                 default:
-                    kType = "Intraday";
+                    kType = "101";
                     break;
             }
             return kType;
         }
 
-        private async Task MonitorLoopAsync(string code, string period, CancellationToken token)
+        private async Task MonitorLoopAsync(string code, PeriodType period, CancellationToken token)
         {
             if (!_monitoring)
                 return;
@@ -654,7 +785,7 @@ namespace StockTickerExtension
                         {
                             StopBtn_Click(null, null);
                         }));
-                        UpdateStatus("Error: Failed to fetch data!", Brushes.Red);
+                        UpdateStatus("Error: Failed to fetch data!", System.Windows.Media.Brushes.Red);
                     }
                 }
                 catch (Exception ex)
@@ -674,9 +805,9 @@ namespace StockTickerExtension
             }
         }
 
-		private async Task<StockSnapshot> FetchKSnapshot_Async(string code, string period)
+		private async Task<StockSnapshot> FetchKSnapshot_Async(string code, PeriodType period)
         {
-            if(period == "Intraday")
+            if(period == PeriodType.Intraday)
                return await FetchSnapshot_Async(code);
 
             var secid = GetSecId(code);
@@ -685,15 +816,15 @@ namespace StockTickerExtension
             var kType = PeriodToKType(period);
 
 			string begStr;
-			if(period == "Daily K")
+			if(period == PeriodType.DailyK)
 				begStr = _currentDate.AddDays(-240).ToString("yyyyMMdd"); // 多取 40 天以支持 MA 引导
-            else if (period == "Weekly K")
+            else if (period == PeriodType.WeeklyK)
                 begStr = _currentDate.AddDays(-240*7).ToString("yyyyMMdd");
-            else if (period == "Monthly K")
+            else if (period == PeriodType.MonthlyK)
                 begStr = _currentDate.AddMonths(-240).ToString("yyyyMMdd");
-            else if (period == "Quarterly K")
+            else if (period == PeriodType.QuarterlyK)
                 begStr = _currentDate.AddMonths(-240*4).ToString("yyyyMMdd");
-            else if (period == "Yearly K")
+            else if (period == PeriodType.YearlyK)
                 begStr = _currentDate.AddYears(-10).ToString("yyyyMMdd");
             else
                 begStr = _currentDate.AddDays(-240).ToString("yyyyMMdd");
@@ -935,6 +1066,8 @@ namespace StockTickerExtension
 
             if (_queue.TryDequeue(out var snap))
             {
+                _currentSnapshot = snap;
+
                 if (StockName.Text != snap.Name)
                 {
                     StockName.Text = snap.Name;
@@ -942,19 +1075,20 @@ namespace StockTickerExtension
 
                 if (string.IsNullOrEmpty(StatusText.Text))
                 {
-                    UpdateStatus($"Monitoring {snap.Code} {snap.Name}", Brushes.Blue);
+                    UpdateStatus($"Monitoring {snap.Code} {snap.Name}", System.Windows.Media.Brushes.Blue);
                 }
 
                 UpdatePriceChart(snap);
+                UpdateMAText(snap);
 
                 var val = snap.ChangePercent.Value;
                 ChangePercentText.Text = snap.ChangePercent.HasValue ? $"{val:F2}%" : "--%";
-                ChangePercentText.Foreground = val > 0 ? Brushes.Red : Brushes.Green;
-                CurrentPrice.Text = snap.CurrentPrice.ToString();
+                ChangePercentText.Foreground = val > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
+                CurrentPriceText.Text = snap.CurrentPrice.ToString();
 
                 UpdateProfitDisplay();
 
-                if (GetChatType() != ChartType.Intraday)
+                if (GetCurrentPeriod() != PeriodType.Intraday)
                 {
                     CheckKdjGoldenCross(snap);
                 }
@@ -978,7 +1112,7 @@ namespace StockTickerExtension
             if (!_monitoring)
                 return;
 
-            if(GetChatType() == ChartType.Intraday)
+            if(GetCurrentPeriod() == PeriodType.Intraday)
             {
                 DrawIntradayChart(snap);
             }
@@ -1126,7 +1260,7 @@ namespace StockTickerExtension
                                         fullSellVolumes.DefaultIfEmpty(0).Max());
             WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3, yAxisIndex: 1); // 上限提高20%
 
-            WpfPlotPrice.Render();
+            WpfPlotPrice.Refresh();
         }
 
         private void DrawKLineChart(StockSnapshot snap)
@@ -1218,16 +1352,16 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
 
             // 设置 X 轴刻度 - 使用时间轴标签
-            string period = GetCurrentPeriod();
-            var (ticks, labels) = GenerateTimeAxisLabels(period, count);
+            var (ticks, labels) = GenerateTimeAxisLabels(GetCurrentPeriod(), count);
             if (ticks.Count > 0)
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
 			WpfPlotPrice.Plot.YLabel("Price");
 
-			// --- 1.1) 计算并叠加 MA5 / MA10 / MA20 ---
-			// 优先使用预计算的严格窗口均线；若为空则退回本地计算
-			var ma5 = snap.MA5 ?? Tool.ComputeSimpleMovingAverage(closes, 5);
+            // --- 1.1) 计算并叠加 MA5 / MA10 / MA20 ---
+            // 优先使用预计算的严格窗口均线；若为空则退回本地计算
+
+            var ma5 = snap.MA5 ?? Tool.ComputeSimpleMovingAverage(closes, 5);
             // 过滤 NaN，仅绘制有效点，避免 ScottPlot 因 NaN 抛异常
             if (MA5.IsChecked == true)
             {
@@ -1238,15 +1372,33 @@ namespace StockTickerExtension
 				double firstVal = double.NaN;
 				for (int i = 0; i < n5; i++)
 				{
-					if (!double.IsNaN(ma5[i])) { firstIdx = i; firstVal = ma5[i]; break; }
+					if (!double.IsNaN(ma5[i])) 
+                    { 
+                        firstIdx = i; 
+                        firstVal = ma5[i]; 
+                        break; 
+                    }
 				}
 				if (firstIdx >= 0)
 				{
-					for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-					for (int i = firstIdx; i < n5; i++) { if (!double.IsNaN(ma5[i])) { xList.Add(xs[i]); yList.Add(ma5[i]); } }
+					for (int i = 0; i < firstIdx; i++) 
+                    { 
+                        xList.Add(xs[i]); 
+                        yList.Add(firstVal);
+                    }
+					for (int i = firstIdx; i < n5; i++)
+                    { 
+                        if (!double.IsNaN(ma5[i])) 
+                        { 
+                            xList.Add(xs[i]);
+                            yList.Add(ma5[i]);
+                        } 
+                    }
 				}
-				var xv = xList.ToArray(); var yv = yList.ToArray();
-				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Black, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
+				var xv = xList.ToArray(); 
+                var yv = yList.ToArray();
+				if (yv.Length > 1) 
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Black, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
 			}
 
             var ma10 = snap.MA10 ?? Tool.ComputeSimpleMovingAverage(closes, 10);
@@ -1259,15 +1411,33 @@ namespace StockTickerExtension
 				double firstVal = double.NaN;
 				for (int i = 0; i < n10; i++)
 				{
-					if (!double.IsNaN(ma10[i])) { firstIdx = i; firstVal = ma10[i]; break; }
+					if (!double.IsNaN(ma10[i]))
+                    { 
+                        firstIdx = i; 
+                        firstVal = ma10[i];
+                        break; 
+                    }
 				}
 				if (firstIdx >= 0)
 				{
-					for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-					for (int i = firstIdx; i < n10; i++) { if (!double.IsNaN(ma10[i])) { xList.Add(xs[i]); yList.Add(ma10[i]); } }
+					for (int i = 0; i < firstIdx; i++) 
+                    {
+                        xList.Add(xs[i]); 
+                        yList.Add(firstVal); 
+                    }
+					for (int i = firstIdx; i < n10; i++) 
+                    { 
+                        if (!double.IsNaN(ma10[i])) 
+                        {
+                            xList.Add(xs[i]); 
+                            yList.Add(ma10[i]);
+                        }
+                    }
 				}
-				var xv = xList.ToArray(); var yv = yList.ToArray();
-				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Orange, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
+				var xv = xList.ToArray(); 
+                var yv = yList.ToArray();
+				if (yv.Length > 1)
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Orange, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
 			}
 
             var ma20 = snap.MA20 ?? Tool.ComputeSimpleMovingAverage(closes, 20);
@@ -1280,15 +1450,33 @@ namespace StockTickerExtension
 				double firstVal = double.NaN;
 				for (int i = 0; i < n20; i++)
 				{
-					if (!double.IsNaN(ma20[i])) { firstIdx = i; firstVal = ma20[i]; break; }
+					if (!double.IsNaN(ma20[i])) 
+                    { 
+                        firstIdx = i;
+                        firstVal = ma20[i];
+                        break;
+                    }
 				}
 				if (firstIdx >= 0)
 				{
-					for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-					for (int i = firstIdx; i < n20; i++) { if (!double.IsNaN(ma20[i])) { xList.Add(xs[i]); yList.Add(ma20[i]); } }
+					for (int i = 0; i < firstIdx; i++) 
+                    { 
+                        xList.Add(xs[i]);
+                        yList.Add(firstVal);
+                    }
+					for (int i = firstIdx; i < n20; i++)
+                    { 
+                        if (!double.IsNaN(ma20[i]))
+                        { 
+                            xList.Add(xs[i]); 
+                            yList.Add(ma20[i]);
+                        }
+                    }
 				}
-				var xv = xList.ToArray(); var yv = yList.ToArray();
-				if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.MediumVioletRed, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
+				var xv = xList.ToArray(); 
+                var yv = yList.ToArray();
+				if (yv.Length > 1) 
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.MediumVioletRed, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
 			}
 
             var ma30 = snap.MA30 ?? Tool.ComputeSimpleMovingAverage(closes, 30);
@@ -1301,15 +1489,33 @@ namespace StockTickerExtension
                 double firstVal = double.NaN;
                 for (int i = 0; i < n30; i++)
                 {
-                    if (!double.IsNaN(ma30[i])) { firstIdx = i; firstVal = ma30[i]; break; }
+                    if (!double.IsNaN(ma30[i])) 
+                    {
+                        firstIdx = i; 
+                        firstVal = ma30[i]; 
+                        break;
+                    }
                 }
                 if (firstIdx >= 0)
                 {
-                    for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-                    for (int i = firstIdx; i < n30; i++) { if (!double.IsNaN(ma30[i])) { xList.Add(xs[i]); yList.Add(ma30[i]); } }
+                    for (int i = 0; i < firstIdx; i++) 
+                    { 
+                        xList.Add(xs[i]); 
+                        yList.Add(firstVal);
+                    }
+                    for (int i = firstIdx; i < n30; i++) 
+                    { 
+                        if (!double.IsNaN(ma30[i])) 
+                        { 
+                            xList.Add(xs[i]); 
+                            yList.Add(ma30[i]);
+                        }
+                    }
                 }
-                var xv = xList.ToArray(); var yv = yList.ToArray();
-                if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Green, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
+                var xv = xList.ToArray(); 
+                var yv = yList.ToArray();
+                if (yv.Length > 1)
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Green, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
             }
 
             var ma60 = snap.MA60 ?? Tool.ComputeSimpleMovingAverage(closes, 60);
@@ -1322,15 +1528,33 @@ namespace StockTickerExtension
                 double firstVal = double.NaN;
                 for (int i = 0; i < n60; i++)
                 {
-                    if (!double.IsNaN(ma60[i])) { firstIdx = i; firstVal = ma60[i]; break; }
+                    if (!double.IsNaN(ma60[i])) 
+                    { 
+                        firstIdx = i;
+                        firstVal = ma60[i]; 
+                        break;
+                    }
                 }
                 if (firstIdx >= 0)
                 {
-                    for (int i = 0; i < firstIdx; i++) { xList.Add(xs[i]); yList.Add(firstVal); }
-                    for (int i = firstIdx; i < n60; i++) { if (!double.IsNaN(ma60[i])) { xList.Add(xs[i]); yList.Add(ma60[i]); } }
+                    for (int i = 0; i < firstIdx; i++) 
+                    { 
+                        xList.Add(xs[i]); 
+                        yList.Add(firstVal);
+                    }
+                    for (int i = firstIdx; i < n60; i++) 
+                    { 
+                        if (!double.IsNaN(ma60[i])) 
+                        { 
+                            xList.Add(xs[i]); 
+                            yList.Add(ma60[i]);
+                        }
+                    }
                 }
-                var xv = xList.ToArray(); var yv = yList.ToArray();
-                if (yv.Length > 1) WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Gray, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
+                var xv = xList.ToArray(); 
+                var yv = yList.ToArray();
+                if (yv.Length > 1)
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Gray, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
             }
 
             // Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值
@@ -1374,7 +1598,10 @@ namespace StockTickerExtension
             if (volsScaled.Length != count)
             {
                 var tmp = new double[count];
-                for (int i = 0; i < count && i < volsScaled.Length; i++) tmp[i] = volsScaled[i];
+                for (int i = 0; i < count && i < volsScaled.Length; i++)
+                {
+                    tmp[i] = volsScaled[i];
+                }
                 volsScaled = tmp;
             }
 
@@ -1429,25 +1656,104 @@ namespace StockTickerExtension
             if (!double.TryParse(CostBox.Text, out double cost)) return;
             if (!double.TryParse(ChangePercentText.Text.TrimEnd('%'), out double change)) return;
                         
-            double currentPrice = double.Parse(CurrentPrice.Text);
+            double currentPrice = double.Parse(CurrentPriceText.Text);
             double positionProfit = (currentPrice - cost) * shares;
             double todayProfit = currentPrice * change * shares / 100;
 
             PositionProfitText.Text = $"Total: {positionProfit:F2}";
-            PositionProfitText.Foreground = positionProfit > 0 ? Brushes.Red : Brushes.Green;
+            PositionProfitText.Foreground = positionProfit > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
 
             TodayProfitText.Text = $"Today: {todayProfit:F2}";
-            TodayProfitText.Foreground = todayProfit > 0 ? Brushes.Red : Brushes.Green;
+            TodayProfitText.Foreground = todayProfit > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
 
             UpdateVSStatus(CodeTextBox.Text, StockName.Text, currentPrice, change, positionProfit, todayProfit);
         }
 
-        private void UpdateStatus(string text, Brush color = null)
+        private void UpdateMAText(StockSnapshot snap)
+        {
+            if (snap.MA5 != null)
+            {
+                double lastMA5Val = double.NaN;
+                foreach (var ma in snap.MA5)
+                {
+                    if (!double.IsNaN(ma))
+                    {
+                        lastMA5Val = ma;
+                    }
+                }
+                if (!double.IsNaN(lastMA5Val))
+                {
+                    MA5.Content = $"MA5: {lastMA5Val:F2}";
+                }
+            }
+            if (snap.MA10 != null)
+            {
+                double lastMA10Val = double.NaN;
+                foreach (var ma in snap.MA10)
+                {
+                    if (!double.IsNaN(ma))
+                    {
+                        lastMA10Val = ma;
+                    }
+                }
+                if (!double.IsNaN(lastMA10Val))
+                {
+                    MA10.Content = $"MA10: {lastMA10Val:F2}";
+                }
+            }
+            if (snap.MA20 != null)
+            {
+                double lastMA20Val = double.NaN;
+                foreach (var ma in snap.MA20)
+                {
+                    if (!double.IsNaN(ma))
+                    {
+                        lastMA20Val = ma;
+                    }
+                }
+                if (!double.IsNaN(lastMA20Val))
+                {
+                    MA20.Content = $"MA20: {lastMA20Val:F2}";
+                }
+            }
+            if (snap.MA30 != null)
+            {
+                double lastMA30Val = double.NaN;
+                foreach (var ma in snap.MA30)
+                {
+                    if (!double.IsNaN(ma))
+                    {
+                        lastMA30Val = ma;
+                    }
+                }
+                if (!double.IsNaN(lastMA30Val))
+                {
+                    MA30.Content = $"MA30: {lastMA30Val:F2}";
+                }
+            }
+            if (snap.MA60 != null)
+            {
+                double lastMA60Val = double.NaN;
+                foreach (var ma in snap.MA60)
+                {
+                    if (!double.IsNaN(ma))
+                    {
+                        lastMA60Val = ma;
+                    }
+                }
+                if (!double.IsNaN(lastMA60Val))
+                {
+                    MA60.Content = $"MA60: {lastMA60Val:F2}";
+                }
+            }
+        }
+
+        private void UpdateStatus(string text, System.Windows.Media.Brush color = null)
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 StatusText.Text = text;
-                StatusText.Foreground = color ?? Brushes.Gray;
+                StatusText.Foreground = color ?? System.Windows.Media.Brushes.Gray;
             }));
         }
 
@@ -1461,31 +1767,12 @@ namespace StockTickerExtension
             return DateTime.Today;
         }
 
-        private ChartType GetChatType()
+        private PeriodType GetCurrentPeriod()
         {
-            return (ChartType)PeriodComboBox.SelectedIndex;
+            return (PeriodType)PeriodComboBox.SelectedIndex;
         }
 
-        /// <summary>
-        /// 获取当前选择的K线周期
-        /// </summary>
-        /// <returns>K线周期字符串</returns>
-        private string GetCurrentPeriod()
-        {
-            if (PeriodComboBox.SelectedItem is ComboBoxItem item)
-            {
-                return item.Content.ToString();
-            }
-            return "Daily K";
-        }
-
-        /// <summary>
-        /// 根据K线周期生成时间轴标签
-        /// </summary>
-        /// <param name="period">K线周期</param>
-        /// <param name="dataCount">数据点数量</param>
-        /// <returns>时间轴标签信息</returns>
-        private (List<double> ticks, List<string> labels) GenerateTimeAxisLabels(string period, int dataCount)
+        private (List<double> ticks, List<string> labels) GenerateTimeAxisLabels(PeriodType period, int dataCount)
         {
             var ticks = new List<double>();
             var labels = new List<string>();
@@ -1496,7 +1783,7 @@ namespace StockTickerExtension
             // 根据不同的K线周期生成时间标签
             switch (period)
             {
-                case "Daily K":
+                case PeriodType.DailyK:
                     // 日K线：显示日期，格式为 MM/dd
                     for (int i = 0; i < dataCount; i += labelInterval)
                     {
@@ -1507,7 +1794,7 @@ namespace StockTickerExtension
                     }
                     break;
                     
-                case "Weekly K":
+                case PeriodType.WeeklyK:
                     // 周K线：显示周，格式为 MM/dd
                     for (int i = 0; i < dataCount; i += labelInterval)
                     {
@@ -1517,7 +1804,7 @@ namespace StockTickerExtension
                     }
                     break;
                     
-                case "Monthly K":
+                case PeriodType.MonthlyK:
                     // 月K线：显示月份，格式为 yyyy/MM
                     for (int i = 0; i < dataCount; i += labelInterval)
                     {
@@ -1527,7 +1814,7 @@ namespace StockTickerExtension
                     }
                     break;
                     
-                case "Quarterly K":
+                case PeriodType.QuarterlyK:
                     // 季K线：显示季度，格式为 yyyy/Q
                     for (int i = 0; i < dataCount; i += labelInterval)
                     {
@@ -1537,7 +1824,7 @@ namespace StockTickerExtension
                     }
                     break;
                     
-                case "Yearly K":
+                case PeriodType.YearlyK:
                     // 年K线：显示年份，格式为 yyyy
                     for (int i = 0; i < dataCount; i += labelInterval)
                     {
@@ -1545,8 +1832,7 @@ namespace StockTickerExtension
                         ticks.Add(i);
                         labels.Add(date.ToString("yyyy"));
                     }
-                    break;
-                    
+                    break;                    
                 default:
                     // 默认显示索引
                     for (int i = 0; i < dataCount; i += labelInterval)
@@ -1560,12 +1846,9 @@ namespace StockTickerExtension
             return (ticks, labels);
         }
 
-        /// <summary>
-        /// K线图鼠标滚轮事件 - 缩放
-        /// </summary>
         private void OnKLineMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (GetChatType() == ChartType.Intraday) return; // 分时图不处理缩放
+            if (GetCurrentPeriod() == PeriodType.Intraday) return; // 分时图不处理缩放
             
             // 获取事件来源的控件
             var sourceControl = sender as ScottPlot.WpfPlot;
@@ -1574,9 +1857,9 @@ namespace StockTickerExtension
             // 获取当前X轴范围
             var xLimits = WpfPlotPrice.Plot.GetAxisLimits();
             double currentRange = xLimits.XMax - xLimits.XMin;
-            
+
             // 计算鼠标位置在X轴上的比例
-            Point mousePos = e.GetPosition(sourceControl);
+            System.Windows.Point mousePos = e.GetPosition(sourceControl);
             double xRatio = mousePos.X / sourceControl.ActualWidth;
             double mouseX = xLimits.XMin + xRatio * currentRange;
             
@@ -1600,12 +1883,9 @@ namespace StockTickerExtension
             WpfPlotVolume.Render();
         }
 
-        /// <summary>
-        /// K线图鼠标左键按下 - 开始拖拽
-        /// </summary>
         private void OnKLineMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (GetChatType() == ChartType.Intraday) return; // 分时图不处理拖拽
+            if (GetCurrentPeriod() == PeriodType.Intraday) return; // 分时图不处理拖拽
             
             // 获取事件来源的控件
             var sourceControl = sender as ScottPlot.WpfPlot;
@@ -1622,12 +1902,9 @@ namespace StockTickerExtension
             sourceControl.CaptureMouse();
         }
 
-        /// <summary>
-        /// K线图鼠标左键释放 - 结束拖拽
-        /// </summary>
         private void OnKLineMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (GetChatType() == ChartType.Intraday) return;
+            if (GetCurrentPeriod() == PeriodType.Intraday) return;
             
             // 获取事件来源的控件
             var sourceControl = sender as ScottPlot.WpfPlot;
@@ -1637,21 +1914,51 @@ namespace StockTickerExtension
             sourceControl.ReleaseMouseCapture();
         }
 
-        /// <summary>
-        /// K线图鼠标移动 - 拖拽平移
-        /// </summary>
         private void OnKLineMouseMove(object sender, MouseEventArgs e)
         {
-            if (!_isDragging || GetChatType() == ChartType.Intraday) return;
-            
+            //             if (!_isDragging || GetChatType() == ChartType.Intraday) return;
+            if (_crosshair == null)
+                return;
+
             // 获取事件来源的控件
             var sourceControl = sender as ScottPlot.WpfPlot;
             if (sourceControl == null) return;
-            
-            Point currentPos = e.GetPosition(sourceControl);
+
+            System.Windows.Point currentPos = e.GetPosition(sourceControl);
+            {
+                (double mouseX, double mouseY) = WpfPlotPrice.GetMouseCoordinates();
+
+                // 限制在范围内
+                if (mouseX < 0 || mouseX >= _tradingMinutes.Count)
+                    return;
+
+                // 找到最接近的点索引（四舍五入）
+                int index = (int)Math.Round(mouseX);
+                if (index < 0 || index >= _tradingMinutes.Count)
+                    return;
+
+                // 获取对应的价格
+                double[] prices = null;
+                if (index < _tradingMinutes.Count && index < _currentSnapshot?.Prices?.Length)
+                    prices = _currentSnapshot.Prices;
+
+                if (prices == null || double.IsNaN(prices[index]))
+                    return;
+
+                double y = prices[index];
+                string time = _tradingMinutes[index].Split(' ')[1]; // 显示HH:mm
+
+                // 更新十字线位置与标签
+                _crosshair.IsVisible = true;
+                _crosshair.X = index;
+                _crosshair.Y = y;
+                _crosshair.Label = $"{time} {y:F2}";
+
+                sourceControl.Refresh();
+            }
+
             double deltaX = currentPos.X - _lastMousePosition.X;
-            
-            if (Math.Abs(deltaX) > 1) // 避免微小移动
+            if (_isDragging && Math.Abs(deltaX) > 1) // 避免微小移动
             {
                 // 获取当前X轴范围
                 var xLimits = WpfPlotPrice.Plot.GetAxisLimits();
@@ -1676,6 +1983,15 @@ namespace StockTickerExtension
             }
         }
 
+        private void OnWpfPlotPrice_MouseLeave(object sender, MouseEventArgs e)
+        {
+            if (_crosshair != null)
+            {
+                _crosshair.IsVisible = false;
+                WpfPlotPrice.Refresh();
+            }
+        }
+
         private async Task MonitorKDJAsync(string code, CancellationToken token)
         {
             while (!token.IsCancellationRequested)
@@ -1684,7 +2000,7 @@ namespace StockTickerExtension
                 {
                     // 每分钟检测一次
                     await Task.Delay(TimeSpan.FromMinutes(5), token);
-                    var kSnap = await FetchKSnapshot_Async(code, "Daily K");
+                    var kSnap = await FetchKSnapshot_Async(code, PeriodType.DailyK);
                     CheckKdjGoldenCross(kSnap);
                 }
                 catch (TaskCanceledException)
@@ -1693,7 +2009,7 @@ namespace StockTickerExtension
                 }
                 catch (Exception ex)
                 {
-                    UpdateStatus("KDJ check error: " + ex.Message, Brushes.Red);
+                    UpdateStatus("KDJ check error: " + ex.Message, System.Windows.Media.Brushes.Red);
                 }
             }
         }
@@ -1708,14 +2024,14 @@ namespace StockTickerExtension
 
                 if (isGolden)
                 {
-                    string str = $"*************** {t} KDJ 出现金叉信号！***************";
-                    UpdateStatus(str, Brushes.Green);
+                    string str = $"*************** {t} KDJ Golden Cross signal！***************";
+                    UpdateStatus(str, System.Windows.Media.Brushes.Green);
                     UpdateVSStatus(str);
                 }
                 else if (isDeath)
                 {
-                    string str = $"*************** {t} KDJ 出现死叉信号！***************";
-                    UpdateStatus(str, Brushes.Red);
+                    string str = $"*************** {t} KDJ Death Cross signal！***************";
+                    UpdateStatus(str, System.Windows.Media.Brushes.Red);
                     UpdateVSStatus(str);
                 }
             }

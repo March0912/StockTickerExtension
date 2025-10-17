@@ -5,7 +5,6 @@
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              HorizontalAlignment="Left"
              VerticalAlignment="Top">
-
     <!-- 外层滚动容器：垂直滚动、水平自适应 -->
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
@@ -30,15 +29,14 @@
             <!-- 顶部控制面板 -->
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="0" HorizontalAlignment="Left">
                 <ComboBox x:Name="StockTypeComboBox" Width="80" SelectedIndex="0" Margin="6,0"/>
-                <TextBlock Text="Stock Code:" VerticalAlignment="Center" Margin="6,0"/>
+                <TextBlock x:Name="StockCode" Text="Stock Code:" VerticalAlignment="Center" Margin="6,0"/>
                 <ComboBox x:Name="CodeTextBox" Width="80" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
-                <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center"/>
-                <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80"/>
-                <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80"/>
+                <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand"/>
+                <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80" Cursor="Hand"/>
+                <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80" Cursor="Hand"/>
                 <TextBlock x:Name="StockName" Text="" VerticalAlignment="Center" Foreground="Blue" Margin="6,0"/>
-                <TextBlock Text="Fluctuation:" VerticalAlignment="Center" />
+                <TextBlock x:Name="Fluctuation" Text="Fluctuation:" VerticalAlignment="Center" />
                 <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center"/>
-                <TextBlock Text=" " Width="20"/>
                 <CheckBox x:Name="AutoStopCheckBox" Content="Stop when closed" IsChecked="False" Margin="6,0" VerticalAlignment="Center"/>
                 <ComboBox x:Name="PeriodComboBox" Width="100" SelectedIndex="0" Margin="6,0"/>
                 <DatePicker x:Name="DatePickerControl" Width="110" Margin="6,0" IsEnabled="False"
@@ -50,21 +48,21 @@
 
             <!-- 第二行：持仓信息 -->
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="1" HorizontalAlignment="Left">
-                <TextBlock Text="Current Price:" VerticalAlignment="Center" Margin="6,0" FontWeight="Bold"/>
-                <TextBox x:Name="CurrentPrice" Width="60" Text="" IsReadOnly="True" BorderBrush="Blue"/>
-                <TextBlock Text="Number of Shares:" VerticalAlignment="Center" Margin="6,0"/>
-                <TextBox x:Name="SharesBox" Width="80" Text="400" />
+                <TextBlock x:Name="CurrentPrice1Label" Text="Current Price:" VerticalAlignment="Center" Margin="6,0" FontWeight="Bold"/>
+                <TextBox x:Name="CurrentPriceText" Width="60" Text="" IsReadOnly="True" BorderBrush="Blue"/>
+                <TextBlock x:Name="NumberSharesBox" Text="Number of Shares:" VerticalAlignment="Center" Margin="6,0"/>
+                <TextBox x:Name="SharesBox" Width="80" Text="" />
                 <TextBlock Text="Cost Price:" VerticalAlignment="Center" Margin="6,0"/>
-                <TextBox x:Name="CostBox" Width="60" Text="40.915" />
+                <TextBox x:Name="CostBox" Width="60" Text="" />
                 <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="12,0"/>
                 <TextBlock x:Name="TodayProfitText" Text="Today: --" Margin="12,0"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="2" HorizontalAlignment="Left">
-                <CheckBox x:Name="MA5" Content="MA5" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Black" />
-                <CheckBox x:Name="MA10" Content="MA10" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Orange"/>
-                <CheckBox x:Name="MA20" Content="MA20" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="MediumVioletRed"/>
-                <CheckBox x:Name="MA30" Content="MA30" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Green"/>
-                <CheckBox x:Name="MA60" Content="MA60" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Gray"/>
+                <CheckBox x:Name="MA5" Content="MA5" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Black" Cursor="Hand"/>
+                <CheckBox x:Name="MA10" Content="MA10" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Orange" Cursor="Hand"/>
+                <CheckBox x:Name="MA20" Content="MA20" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="MediumVioletRed" Cursor="Hand"/>
+                <CheckBox x:Name="MA30" Content="MA30" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Green" Cursor="Hand"/>
+                <CheckBox x:Name="MA60" Content="MA60" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Gray" Cursor="Hand"/>
             </StackPanel>
             <!-- 第三行：图表区域 -->
             <Grid Grid.Row="3" Margin="3">
@@ -75,7 +73,7 @@
                     <RowDefinition Height="1.5*"/>
                 </Grid.RowDefinitions>
                 <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" Grid.Row="0" HorizontalAlignment="Stretch" Margin="0,0,20,6"/>
-                <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="240" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,0,20,6" />
+                <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="200" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,0,20,6" />
             </Grid>
         </Grid>
     </ScrollViewer>

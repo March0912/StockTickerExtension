@@ -67,7 +67,11 @@ namespace StockTickerExtension
                 string json = JsonConvert.SerializeObject(_config, Formatting.Indented);
                 File.WriteAllText(_configPath, json);
             }
-            catch { /* 可加日志 */ }
+            catch (Exception ex)
+            { 
+                /* 可加日志 */
+                var s = ex.Message;
+            }
         }
 
         public UserConfig Config => _config;
