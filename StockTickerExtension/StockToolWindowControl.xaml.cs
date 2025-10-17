@@ -124,6 +124,7 @@ namespace StockTickerExtension
             _ownerPane = owner as StockToolWindow;
 
             Init();
+            Logger.Info("StockWather initialized successed!");
         }
 
         public bool IsAutoStopWhenClosed()
@@ -217,8 +218,9 @@ namespace StockTickerExtension
 
         private void CodeTextBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            StopMonitoring();
-            StartBtn_Click(null, null);
+
+//             StopMonitoring();
+//             StartBtn_Click(null, null);
         }
 
         private void StockTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -249,10 +251,6 @@ namespace StockTickerExtension
                     var text = comboBox.Text?.Trim();
                     if (!string.IsNullOrEmpty(text))
                     {
-                        // 自动把输入的代码加入历史记录
-//                         if (!comboBox.Items.Contains(text))
-//                             comboBox.Items.Add(text);
-
                         if (!_monitoring)
                             StartBtn_Click(null, null);
                     }
@@ -713,6 +711,7 @@ namespace StockTickerExtension
            
             StartBtn.IsEnabled = false;
             StopBtn.IsEnabled = true;
+            Logger.Info("Start monitoring stock: " + code);
         }
 
         private void StopMonitoring()
@@ -733,7 +732,10 @@ namespace StockTickerExtension
             _kdjCts = null;
 
             UpdateStatus("Conitoring stopped", System.Windows.Media.Brushes.Blue);
-            if (_uiTimer.IsEnabled) _uiTimer.Stop();
+            if (_uiTimer.IsEnabled) 
+                _uiTimer.Stop();
+
+            Logger.Info("Monitoring stoped!");
         }
 
         private string PeriodToKType(PeriodType period)
@@ -795,6 +797,7 @@ namespace StockTickerExtension
                         StopBtn_Click(null, null);
                     }));
                     UpdateStatus("Error:" + ex.Message);
+                    Logger.Error(ex.Message);
                 }
 
                 for (int i = 0; i < _fetchIntervalSeconds * 10; i++)
@@ -2010,6 +2013,7 @@ namespace StockTickerExtension
                 catch (Exception ex)
                 {
                     UpdateStatus("KDJ check error: " + ex.Message, System.Windows.Media.Brushes.Red);
+                    Logger.Error("KDJ check error: " + ex.Message);
                 }
             }
         }

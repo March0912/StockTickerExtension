@@ -71,6 +71,7 @@ namespace StockTickerExtension
             { 
                 /* 可加日志 */
                 var s = ex.Message;
+                Logger.Error(s);
             }
         }
 
