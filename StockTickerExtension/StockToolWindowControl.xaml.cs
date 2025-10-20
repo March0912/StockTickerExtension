@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
+using ScottPlot.Drawing.Colormaps;
 using ScottPlot.Plottable;
 using System;
 using System.Collections.Concurrent;
@@ -9,6 +10,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -156,7 +158,7 @@ namespace StockTickerExtension
             }
         }
 
-        private void On_Unloaded(object sender, RoutedEventArgs e)
+        private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             if (AutoStopCheckBox.IsChecked == true)
             {
@@ -301,11 +303,11 @@ namespace StockTickerExtension
             MA60.IsEnabled = false;
 
             // 当 UserControl 卸载（窗口关闭）时停止监控
-            this.Unloaded += On_Unloaded;
+            this.Unloaded += OnUnloaded;
             DatePickerControl.SelectedDateChanged += Date_SelecteionChanged;
 
             CurrentPriceText.FontWeight = FontWeights.Bold;
-            CurrentPriceText.Foreground = System.Windows.Media.Brushes.Blue;
+            CurrentPriceText.Foreground = System.Windows.Media.Brushes.Green;
 
             InitCodeTextBox();
             InitStockTypeComboBox();
@@ -368,11 +370,11 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
 
             // 为价格图添加鼠标事件
-            WpfPlotPrice.MouseWheel += OnKLineMouseWheel;
-            WpfPlotPrice.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
-            WpfPlotPrice.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
-            WpfPlotPrice.MouseMove += OnKLineMouseMove;
-            WpfPlotPrice.MouseLeave += OnWpfPlotPrice_MouseLeave;
+//             WpfPlotPrice.MouseWheel += OnKLineMouseWheel;
+//             WpfPlotPrice.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
+//             WpfPlotPrice.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
+//             WpfPlotPrice.MouseMove += OnKLineMouseMove;
+//             WpfPlotPrice.MouseLeave += OnWpfPlotPrice_MouseLeave;
 
             // 初始化十字线（只创建一次）
             if (_crosshair == null)
@@ -388,10 +390,10 @@ namespace StockTickerExtension
             WpfPlotVolume.Configuration.LeftClickDragPan = false;
 
             // 为成交量图添加相同的鼠标事件，实现联动
-            WpfPlotVolume.MouseWheel += OnKLineMouseWheel;
-            WpfPlotVolume.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
-            WpfPlotVolume.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
-            WpfPlotVolume.MouseMove += OnKLineMouseMove;
+//             WpfPlotVolume.MouseWheel += OnKLineMouseWheel;
+//             WpfPlotVolume.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
+//             WpfPlotVolume.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
+//             WpfPlotVolume.MouseMove += OnKLineMouseMo0ve;
 
             // 关键时间点
             var dateStr = _currentDate.ToString("yyyy-MM-dd ");
@@ -442,8 +444,9 @@ namespace StockTickerExtension
             // 设置当前控件
             if (obj is Control ctrl)
             {
-                ctrl.Background = bgBrush;
-                ctrl.Foreground = fgBrush;
+//                 ctrl.Background = bgBrush;
+                if (ctrl.Name != "StartBtn" && ctrl.Name != "StopBtn" && bgColor0.Name.ToLower() == "ff1f1f1f")
+                    ctrl.Foreground = fgBrush;
 
                 if (ctrl is ComboBox combo)
                 {
@@ -460,6 +463,21 @@ namespace StockTickerExtension
                         }
                     };
                     combo.UpdateLayout();
+                    ApplyThemeToComboBoxChildren(combo, fgBrush, bgBrush, bdBrush);
+                }
+                else if (ctrl is CheckBox cb)
+                {
+                    cb.Foreground = fgBrush;
+                    if (bgColor0.Name.ToLower() == "ff1f1f1f")  //暗黑主题才调整
+                    {
+                        cb.ApplyTemplate();
+                        ApplyThemeToCheckBoxChildren(cb);
+                    }
+                }
+                else if (ctrl is DatePicker dp)
+                {
+                    dp.ApplyTemplate();
+                    ApplyThemeToDatePickerChildren(dp, fgBrush, bgBrush);
                 }
                 else if (ctrl is ScottPlot.WpfPlot wpfPlot)
                 {
@@ -473,25 +491,6 @@ namespace StockTickerExtension
                                         titleLabel: fgColor0);
                     wpfPlot.Refresh();
                 }
-                else if(ctrl is CheckBox cb)
-                {
-                    cb.Foreground = fgBrush;
-                    if (bgColor0.Name.ToLower() == "ff1f1f1f")
-                    {
-                        cb.ApplyTemplate();
-                        ApplyThemeToCheckBoxChildren(cb);
-                    }
-                }
-            }
-            else if (obj is TextBlock tb)
-            {
-//              tb.Background = bgBrush;
-                tb.Foreground = fgBrush;
-            }            
-            else if (obj is Border bd)
-            {
-                bd.Background = bgBrush;
-                bd.BorderBrush = bdBrush;
             }
 
             // 递归对子控件应用
@@ -503,11 +502,36 @@ namespace StockTickerExtension
             }
         }
 
+        private void ApplyThemeToComboBoxChildren(DependencyObject obj, SolidColorBrush fgBrush, SolidColorBrush bgBrush, SolidColorBrush bdBrush)
+        {
+            if (obj is Border bd)
+            {
+                bd.Background = bgBrush;
+                bd.BorderBrush = bdBrush;
+            }
+            else if (obj is TextBlock tb)
+            {
+                tb.Foreground = fgBrush;
+            }
+            else if (obj is TextBox tbox)
+            {
+                tbox.Foreground = new SolidColorBrush(Colors.Red);
+            }
+            else
+            {
+                int count = VisualTreeHelper.GetChildrenCount(obj);
+                for (int i = 0; i < count; i++)
+                {
+                    DependencyObject child = VisualTreeHelper.GetChild(obj, i);
+                    ApplyThemeToComboBoxChildren(child, fgBrush, bgBrush, bdBrush);
+                }
+            }
+        }
         private void ApplyThemeToCheckBoxChildren(DependencyObject obj)
         {
             if (obj is Path ph)
             {
-                ph.Fill = new SolidColorBrush(Colors.White);
+                ph.Fill = new SolidColorBrush(Colors.LightBlue);
             }
             else
             {
@@ -519,6 +543,29 @@ namespace StockTickerExtension
                 }
             }
         }
+
+        private void ApplyThemeToDatePickerChildren(DependencyObject obj, SolidColorBrush fgBrush, SolidColorBrush bgBrush)
+        {
+            if (obj is DatePickerTextBox dptb)
+            {
+                 dptb.Foreground = fgBrush;
+                 dptb.Background = bgBrush;
+            }
+//             else if (obj is Shape sp)
+//             {
+//                 sp.Fill = bgBrush;
+//             }
+            else
+            {
+                int count = VisualTreeHelper.GetChildrenCount(obj);
+                for (int i = 0; i < count; i++)
+                {
+                    DependencyObject child = VisualTreeHelper.GetChild(obj, i);
+                    ApplyThemeToDatePickerChildren(child, fgBrush, bgBrush);
+                }
+            }
+        }
+
 
         private List<string> BuildTradingMinutes(DateTime date)
         {
@@ -707,10 +754,14 @@ namespace StockTickerExtension
             }
 
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
-            UpdateStatus("", System.Windows.Media.Brushes.Blue);
+            UpdateStatus("", System.Windows.Media.Brushes.LightBlue);
            
             StartBtn.IsEnabled = false;
+            StartBtn.FontWeight = FontWeights.Normal;
+
             StopBtn.IsEnabled = true;
+            StopBtn.FontWeight = FontWeights.Bold;
+
             Logger.Info("Start monitoring stock: " + code);
         }
 
@@ -722,7 +773,11 @@ namespace StockTickerExtension
             }
 
             StopBtn.IsEnabled = false;
+            StopBtn.FontWeight = FontWeights.Normal;
+
             StartBtn.IsEnabled = true;
+            StartBtn.FontWeight = FontWeights.Bold;
+
             _monitoring = false;
 
             _cts?.Cancel();
@@ -731,7 +786,7 @@ namespace StockTickerExtension
             _kdjCts?.Cancel();
             _kdjCts = null;
 
-            UpdateStatus("Conitoring stopped", System.Windows.Media.Brushes.Blue);
+            UpdateStatus("Conitoring stopped", System.Windows.Media.Brushes.Green);
             if (_uiTimer.IsEnabled) 
                 _uiTimer.Stop();
 
@@ -1078,7 +1133,7 @@ namespace StockTickerExtension
 
                 if (string.IsNullOrEmpty(StatusText.Text))
                 {
-                    UpdateStatus($"Monitoring {snap.Code} {snap.Name}", System.Windows.Media.Brushes.Blue);
+                    UpdateStatus($"Monitoring {snap.Code} {snap.Name}", System.Windows.Media.Brushes.Green);
                 }
 
                 UpdatePriceChart(snap);
@@ -2072,5 +2127,58 @@ namespace StockTickerExtension
             _configManager.Save();
         }
 
+        private void TryLoadVsBrush(string vsBrushFieldName, string localResourceKey, System.Windows.Media.Color fallbackColor)
+        {
+            try
+            {
+                // 尝试在常见的两个程序集名字下寻找类型（兼容不同 VS/SDK 版本）
+                Type vsBrushesType = Type.GetType("Microsoft.VisualStudio.PlatformUI.VsBrushes, Microsoft.VisualStudio.Shell.15.0")
+                                    ?? Type.GetType("Microsoft.VisualStudio.PlatformUI.VsBrushes, Microsoft.VisualStudio.Shell");
+
+                if (vsBrushesType != null)
+                {
+                    // 字段名例如 "ToolWindowBackgroundKey", "ToolWindowTextKey", "CommandBarGradientBeginKey" ...
+                    FieldInfo fi = vsBrushesType.GetField(vsBrushFieldName, BindingFlags.Public | BindingFlags.Static);
+                    if (fi != null)
+                    {
+                        object keyObj = fi.GetValue(null);
+                        // vsBrushes 的字段通常是 ComponentResourceKey
+                        if (keyObj is ComponentResourceKey compKey)
+                        {
+                            // TryFindResource 在不同上下文可用（Window/UserControl）。我们用 this.TryFindResource
+                            var res = this.TryFindResource(compKey);
+                            if (res is SolidColorBrush scb)
+                            {
+                                // 覆盖/设置到本控件资源字典中
+                                this.Resources[localResourceKey] = scb;
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // 忽略所有异常，走 fallback
+            }
+
+            // fallback：如果读取失败，用一个简单的 SolidColorBrush 填充 XAML 中的本地 key
+            this.Resources[localResourceKey] = new SolidColorBrush(fallbackColor);
+        }
+
+        private System.Windows.Media.Color ColorFromHex(string hex, double opacity = 1.0)
+        {
+            // hex like "#RRGGBB" or "#AARRGGBB"
+            try
+            {
+                var c = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex);
+                c.A = (byte)(opacity * 255);
+                return c;
+            }
+            catch
+            {
+                return Colors.Transparent;
+            }
+        }
     }
 }
