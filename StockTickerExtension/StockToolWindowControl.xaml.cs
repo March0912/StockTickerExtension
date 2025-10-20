@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
+using ScottPlot;
 using ScottPlot.Drawing.Colormaps;
 using ScottPlot.Plottable;
 using System;
@@ -308,6 +309,11 @@ namespace StockTickerExtension
             InitPriceChat();
             InitUIColor();
 
+            if(CodeTextBox.Items.Count == 0)
+            {
+                UpdateStatus("Please enter a stock code.", System.Windows.Media.Brushes.Red);
+            }
+
             _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
         }
 
@@ -361,13 +367,13 @@ namespace StockTickerExtension
 //             WpfPlotPrice.MouseWheel += OnKLineMouseWheel;
 //             WpfPlotPrice.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
 //             WpfPlotPrice.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
-//             WpfPlotPrice.MouseMove += OnKLineMouseMove;
-//             WpfPlotPrice.MouseLeave += OnWpfPlotPrice_MouseLeave;
+            WpfPlotPrice.MouseMove += OnKLineMouseMove;
+            WpfPlotPrice.MouseLeave += OnWpf_MouseLeave;
 
             // 初始化十字线（只创建一次）
             if (_crosshair == null)
             {
-                _crosshair = WpfPlotPrice.Plot.AddCrosshair(0, 0);
+                _crosshair = WpfPlotPrice.Plot.AddCrosshair(50, 0);
                 _crosshair.IsVisible = false;
                 _crosshair.LineColor = System.Drawing.Color.Red;
                 _crosshair.LineWidth = 1;
@@ -381,7 +387,7 @@ namespace StockTickerExtension
 //             WpfPlotVolume.MouseWheel += OnKLineMouseWheel;
 //             WpfPlotVolume.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
 //             WpfPlotVolume.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
-//             WpfPlotVolume.MouseMove += OnKLineMouseMo0ve;
+//             WpfPlotVolume.MouseMove += OnKLineMouseMove;
 
             // 关键时间点
             var dateStr = _currentDate.ToString("yyyy-MM-dd ");
@@ -441,7 +447,7 @@ namespace StockTickerExtension
                     combo.Background = bgBrush;
                     combo.BorderBrush = bdBrush;
                     // 下拉项的背景色需要通过 ItemContainerStyle 改
-                    combo.ItemContainerStyle = new Style(typeof(ComboBoxItem))
+                    combo.ItemContainerStyle = new System.Windows.Style(typeof(ComboBoxItem))
                     {
                         Setters =
                         {
@@ -728,6 +734,11 @@ namespace StockTickerExtension
             _monitoring = true;
 
             var codeName = CodeTextBox.Text?.Trim();
+            if(codeName == null)
+            {
+                return; 
+            }
+
             var code = codeName.Split(' ')[0];
             _cts = new CancellationTokenSource();
             _ =Task.Run(() => MonitorLoopAsync(code, period, _cts.Token));
@@ -1173,6 +1184,8 @@ namespace StockTickerExtension
         {
             if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0)
                 return;
+
+            var crosshair = _crosshair; // 缓存旧的十字线
             WpfPlotPrice.Plot.Clear();
 
             List<double> safePrices = new List<double>();
@@ -1307,6 +1320,14 @@ namespace StockTickerExtension
                                         fullSellVolumes.DefaultIfEmpty(0).Max());
             WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3, yAxisIndex: 1); // 上限提高20%
 
+            if (crosshair != null)
+            {
+                _crosshair = WpfPlotPrice.Plot.AddCrosshair(crosshair.X, crosshair.Y);
+                _crosshair.LineColor = crosshair.LineColor;
+                _crosshair.LineWidth = crosshair.LineWidth;
+                _crosshair.IsVisible = crosshair.IsVisible;
+            }
+
             WpfPlotPrice.Refresh();
         }
 
@@ -1315,6 +1336,7 @@ namespace StockTickerExtension
             if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0)
                 return;
 
+            var crosshair = _crosshair; // 缓存旧的十字线
             // 清理两个图
             WpfPlotPrice.Plot.Clear();
             WpfPlotPrice.Plot.YAxis2.Ticks(false);
@@ -1692,6 +1714,15 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
             WpfPlotVolume.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
 
+
+            if (crosshair != null)
+            {
+                _crosshair = WpfPlotPrice.Plot.AddCrosshair(crosshair.X, crosshair.Y);
+                _crosshair.LineColor = crosshair.LineColor;
+                _crosshair.LineWidth = crosshair.LineWidth;
+                _crosshair.IsVisible = crosshair.IsVisible;
+            }
+
             // 最后渲染
             WpfPlotPrice.Render();
             WpfPlotVolume.Render();
@@ -1963,7 +1994,7 @@ namespace StockTickerExtension
 
         private void OnKLineMouseMove(object sender, MouseEventArgs e)
         {
-            //             if (!_isDragging || GetChatType() == ChartType.Intraday) return;
+            // if (!_isDragging || GetChatType() == ChartType.Intraday) return;
             if (_crosshair == null)
                 return;
 
@@ -1971,9 +2002,8 @@ namespace StockTickerExtension
             var sourceControl = sender as ScottPlot.WpfPlot;
             if (sourceControl == null) return;
 
-            System.Windows.Point currentPos = e.GetPosition(sourceControl);
             {
-                (double mouseX, double mouseY) = WpfPlotPrice.GetMouseCoordinates();
+                (double mouseX, double mouseY) = sourceControl.GetMouseCoordinates();
 
                 // 限制在范围内
                 if (mouseX < 0 || mouseX >= _tradingMinutes.Count)
@@ -1992,18 +2022,25 @@ namespace StockTickerExtension
                 if (prices == null || double.IsNaN(prices[index]))
                     return;
 
-                double y = prices[index];
+                sourceControl.Cursor = Cursors.Cross;
+
                 string time = _tradingMinutes[index].Split(' ')[1]; // 显示HH:mm
+                var y = mouseY;// prices[index];
 
                 // 更新十字线位置与标签
                 _crosshair.IsVisible = true;
                 _crosshair.X = index;
                 _crosshair.Y = y;
                 _crosshair.Label = $"{time} {y:F2}";
+                _crosshair.HorizontalLine.PositionFormatter = v => $"{y:F2}";
+                _crosshair.VerticalLine.PositionFormatter = v => $"{_tradingMinutes[index].Split(' ')[1]}";
+                _crosshair.HorizontalLine.Color = System.Drawing.Color.Red;
+                _crosshair.VerticalLine.Color = System.Drawing.Color.Red;
 
-                sourceControl.Refresh();
+                WpfPlotPrice.Render();
             }
 
+            System.Windows.Point currentPos = e.GetPosition(sourceControl);
             double deltaX = currentPos.X - _lastMousePosition.X;
             if (_isDragging && Math.Abs(deltaX) > 1) // 避免微小移动
             {
@@ -2028,15 +2065,27 @@ namespace StockTickerExtension
                 
                 _lastMousePosition = currentPos;
             }
+
+
+//             var plt = WpfPlotPrice.Plot;
+//             plt.Clear();
+//             plt.AddSignal(ScottPlot.DataGen.Sin(100));
+//             var ch = plt.AddCrosshair(50, 0);
+//             ch.IsVisible = true;
+//             WpfPlotPrice.Refresh();
         }
 
-        private void OnWpfPlotPrice_MouseLeave(object sender, MouseEventArgs e)
+        private void OnWpf_MouseLeave(object sender, MouseEventArgs e)
         {
             if (_crosshair != null)
             {
                 _crosshair.IsVisible = false;
                 WpfPlotPrice.Refresh();
             }
+
+            var sourceControl = sender as ScottPlot.WpfPlot;
+            if (sourceControl != null)
+                sourceControl.Cursor = Cursors.Arrow;
         }
 
         private async Task MonitorKDJAsync(string code, CancellationToken token)
