@@ -40,9 +40,9 @@ namespace StockTickerExtension
             base.Initialize();
             _statusUpdater = new StockStatusBarUpdater(this);
         }
-        public void UpdateStatusInfo(string code, string name, double price, double changePercent, double positionProfit, double todayProfit)
+        public void UpdateStatusInfo(string code, double price, double changePercent, double positionProfit, double todayProfit)
         {
-            _statusUpdater.UpdateStatusInfo(code, name, price, changePercent, positionProfit, todayProfit);
+            _statusUpdater.UpdateStatusInfo(code, price, changePercent, positionProfit, todayProfit);
         }
 
         public void UpdateStatusInfo(string text)

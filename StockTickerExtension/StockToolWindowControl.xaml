@@ -67,11 +67,11 @@
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="0" HorizontalAlignment="Left">
                 <ComboBox x:Name="StockTypeComboBox" Width="80" SelectedIndex="0" Margin="6,0"/>
                 <TextBlock x:Name="StockCode" Text="Stock Code:" VerticalAlignment="Center" Margin="6,0"/>
-                <ComboBox x:Name="CodeTextBox" Width="80" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
-                <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
+                <ComboBox x:Name="CodeTextBox" Width="120" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
                 <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80" Cursor="Hand" />
                 <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80" Cursor="Hand"/>
-                <TextBlock x:Name="StockName" Text="" VerticalAlignment="Center" Margin="6,0"/>
+                <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
+                <Button x:Name="RemoveBtn" Content="-" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
                 <TextBlock x:Name="Fluctuation" Text="Fluctuation:" VerticalAlignment="Center" />
                 <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center" />
                 <CheckBox x:Name="AutoStopCheckBox" Content="Stop when closed" IsChecked="False" Margin="6,0" VerticalAlignment="Center"/>

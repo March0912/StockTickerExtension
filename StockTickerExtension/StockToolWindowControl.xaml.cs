@@ -138,26 +138,6 @@ namespace StockTickerExtension
 
         private void StopBtn_Click(object sender, System.Windows.RoutedEventArgs e) => StopMonitoring();
 
-        private void CodeTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
-        {
-            var tb = sender as TextBox;
-            e.Handled = !e.Text.All(char.IsDigit) || tb.Text.Length >= 6;
-        }
-
-        private void CodeTextBox_Pasting(object sender, DataObjectPastingEventArgs e)
-        {
-            if (e.DataObject.GetDataPresent(DataFormats.Text))
-            {
-                string text = e.DataObject.GetData(DataFormats.Text) as string;
-                if (!text.All(char.IsDigit))
-                    e.CancelCommand();
-            }
-            else
-            {
-                e.CancelCommand();
-            }
-        }
-
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             if (AutoStopCheckBox.IsChecked == true)
@@ -220,9 +200,8 @@ namespace StockTickerExtension
 
         private void CodeTextBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-
-//             StopMonitoring();
-//             StartBtn_Click(null, null);
+             StopBtn_Click(null, null);
+             StartBtn_Click(null, null);
         }
 
         private void StockTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -277,12 +256,21 @@ namespace StockTickerExtension
             }
         }
 
+        private void RemoveBtn_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            var text = CodeTextBox.Text?.Trim();
+            if (!string.IsNullOrEmpty(text))
+            {
+                CodeTextBox.Items.Remove(text);
+            }
+        }
+
         private void Init()
         {
             _configManager.Load();
 
-            SharesBox.Text = _configManager.Config.LastShares.ToString();
-            CostBox.Text = _configManager.Config.LastCostPrices.ToString();
+            SharesBox.Text = _configManager.Config.CurrentShares.ToString();
+            CostBox.Text = _configManager.Config.CurrentCostPrices.ToString();
             AutoStopCheckBox.IsChecked = _configManager.Config.AutoStopOnClose;
             MA5.IsChecked = _configManager.Config.MA5Checked;
             MA10.IsChecked = _configManager.Config.MA10Checked;
@@ -291,6 +279,7 @@ namespace StockTickerExtension
             MA60.IsChecked = _configManager.Config.MA60Checked;
 
             AddBtn.Click += AddBtn_Click;
+            RemoveBtn.Click += RemoveBtn_Click;
             StartBtn.Click += StartBtn_Click;
             StartBtn.Content = !IsTradingTime(DateTime.Now) ? "Get" : "Start";
             StopBtn.Click += StopBtn_Click;
@@ -325,14 +314,13 @@ namespace StockTickerExtension
         private void InitCodeTextBox()
         {
             CodeTextBox.KeyUp += CodeTextBox_KeyUp;
-            DataObject.AddPastingHandler(CodeTextBox, CodeTextBox_Pasting);
 
             foreach (var code in _configManager.Config.WatchStockList)
             {
                 CodeTextBox.Items.Add(code);
             }
 
-            CodeTextBox.Text = _configManager.Config.LastStockCode;
+            CodeTextBox.Text = _configManager.Config.CurrentStock;
 
             //有问题，先不启用
 //             CodeTextBox.SelectionChanged += CodeTextBox_SelectionChanged;    
@@ -344,8 +332,8 @@ namespace StockTickerExtension
             StockTypeComboBox.Items.Add("HK stocks");
             StockTypeComboBox.Items.Add("US stocks");
 
-            StockTypeComboBox.SelectedIndex = (int)_configManager.Config.LastStockType;
-            _stockType = _configManager.Config.LastStockType;
+            StockTypeComboBox.SelectedIndex = (int)_configManager.Config.CurrentStockType;
+            _stockType = _configManager.Config.CurrentStockType;
 
             StockTypeComboBox.SelectionChanged += StockTypeComboBox_SelectionChanged;
         }
@@ -359,7 +347,7 @@ namespace StockTickerExtension
             PeriodComboBox.Items.Add("Quarterly K");
             PeriodComboBox.Items.Add("Yearly K");
 
-            PeriodComboBox.SelectedItem = _configManager.Config.PeriodType;
+            PeriodComboBox.SelectedIndex = 0;
             PeriodComboBox.SelectionChanged += PeriodComboBox_SelectionChanged;
         }
 
@@ -630,7 +618,7 @@ namespace StockTickerExtension
             return list;
         }
 
-        private void UpdateVSStatus(string code, string name, double price, double changePercent, double positionProfit, double todayProfit)
+        private void UpdateVSStatus(string code, double price, double changePercent, double positionProfit, double todayProfit)
         {
             // Dispatcher 保证在 UI 线程安全执行
             Dispatcher.Invoke(() =>
@@ -638,7 +626,7 @@ namespace StockTickerExtension
                 // 获取当前的父窗口（ToolWindowPane）
                 if (_ownerPane != null)
                 {
-                    _ownerPane.UpdateStatusInfo(code, name, price, changePercent, positionProfit, todayProfit);
+                    _ownerPane.UpdateStatusInfo(code, price, changePercent, positionProfit, todayProfit);
                 }
             });
         }
@@ -706,8 +694,8 @@ namespace StockTickerExtension
 
         bool CheckTradingTime()
         {
-            var code = CodeTextBox.Text?.Trim();
-            if (string.IsNullOrWhiteSpace(code))
+            var codeName = CodeTextBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(codeName))
             {
                 UpdateStatus("Error: Please enter a stock code", System.Windows.Media.Brushes.Red);
                 return false;
@@ -739,7 +727,8 @@ namespace StockTickerExtension
             StopMonitoring();
             _monitoring = true;
 
-            var code = CodeTextBox.Text?.Trim();
+            var codeName = CodeTextBox.Text?.Trim();
+            var code = codeName.Split(' ')[0];
             _cts = new CancellationTokenSource();
             _ =Task.Run(() => MonitorLoopAsync(code, period, _cts.Token));
 
@@ -762,7 +751,7 @@ namespace StockTickerExtension
             StopBtn.IsEnabled = true;
             StopBtn.FontWeight = FontWeights.Bold;
 
-            Logger.Info("Start monitoring stock: " + code);
+            Logger.Info("Start monitoring stock: " + codeName);
         }
 
         private void StopMonitoring()
@@ -1126,9 +1115,9 @@ namespace StockTickerExtension
             {
                 _currentSnapshot = snap;
 
-                if (StockName.Text != snap.Name)
+                if (!CodeTextBox.Text.Contains(snap.Name))
                 {
-                    StockName.Text = snap.Name;
+                    CodeTextBox.Text = snap.Code + " " + snap.Name;
                 }
 
                 if (string.IsNullOrEmpty(StatusText.Text))
@@ -1724,7 +1713,7 @@ namespace StockTickerExtension
             TodayProfitText.Text = $"Today: {todayProfit:F2}";
             TodayProfitText.Foreground = todayProfit > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
 
-            UpdateVSStatus(CodeTextBox.Text, StockName.Text, currentPrice, change, positionProfit, todayProfit);
+            UpdateVSStatus(CodeTextBox.Text, currentPrice, change, positionProfit, todayProfit);
         }
 
         private void UpdateMAText(StockSnapshot snap)
@@ -2098,18 +2087,17 @@ namespace StockTickerExtension
 
         public void SaveConfig()
         {
-            _configManager.Config.LastStockType = (StockType)StockTypeComboBox.SelectedIndex;
-            _configManager.Config.LastStockCode = CodeTextBox.Text.Trim();
-            _configManager.Config.PeriodType = PeriodComboBox.Text;
+            _configManager.Config.CurrentStockType = (StockType)StockTypeComboBox.SelectedIndex;
+            _configManager.Config.CurrentStock = CodeTextBox.Text.Trim();
             _configManager.Config.AutoStopOnClose = AutoStopCheckBox.IsChecked == true;
             
             int shares = 0;
             int.TryParse(SharesBox.Text, out shares);
-            _configManager.Config.LastShares = shares;
+            _configManager.Config.CurrentShares = shares;
 
             float cost = 0.0f;
             float.TryParse(CostBox.Text, out cost);
-            _configManager.Config.LastCostPrices = cost;
+            _configManager.Config.CurrentCostPrices = cost;
 
             _configManager.Config.MA5Checked = MA5.IsChecked == true;
             _configManager.Config.MA10Checked = MA10.IsChecked == true;
@@ -2117,12 +2105,10 @@ namespace StockTickerExtension
             _configManager.Config.MA30Checked = MA30.IsChecked == true;
             _configManager.Config.MA60Checked = MA60.IsChecked == true;
 
-            foreach (var str in CodeTextBox.Items)
+            _configManager.Config.WatchStockList.Clear();
+            foreach (var item in CodeTextBox.Items)
             {
-                if (!_configManager.Config.WatchStockList.Contains(str.ToString()))
-                {
-                    _configManager.Config.WatchStockList.Add(str.ToString());
-                }
+                _configManager.Config.WatchStockList.Add(item.ToString());
             }
             _configManager.Save();
         }
