@@ -29,7 +29,7 @@ namespace StockTickerExtension
             _timer.Stop();
         }
 
-        public void UpdateStatusInfo(string code, string name, double price, double changePercent, double positionProfit, double todayProfit)
+        public void UpdateStatusInfo(string code, double price, double changePercent, double positionProfit, double todayProfit)
         {
             string arrow;
             if (changePercent < 0)
@@ -48,7 +48,7 @@ namespace StockTickerExtension
                 _color = 0x00FFFFFF;
             }
 
-            _text = $"{code} {name}: Price:{price:F2} | Change:{changePercent:F2}% | Profit:{positionProfit:F2} | Today:{todayProfit:F2} {arrow}";
+            _text = $"{code}: Price:{price:F2} | Change:{changePercent:F2}% | Profit:{positionProfit:F2} | Today:{todayProfit:F2} {arrow}";
         }
 
         public void UpdateStatusInfo(string text)
