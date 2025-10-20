@@ -3,8 +3,44 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:scottplt="clr-namespace:ScottPlot;assembly=ScottPlot.WPF"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             xmlns:vsfx="clr-namespace:Microsoft.VisualStudio.PlatformUI;assembly=Microsoft.VisualStudio.Shell.15.0"
              HorizontalAlignment="Left"
-             VerticalAlignment="Top">
+             VerticalAlignment="Top"
+             Background="{DynamicResource VsBackgroundBrush}">
+
+    <UserControl.Resources>
+        <!-- Button 默认样式 -->
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowTextBrushKey}}"/>
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}"/>
+        </Style>
+        
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowTextBrushKey}}"/>
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}"/>
+        </Style>
+        
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowTextBrushKey}}"/>
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}"/>
+        </Style>
+
+        <!-- CheckBox 默认样式 -->
+        <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowTextBrushKey}}" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Foreground" Value="LightGreen"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+    </UserControl.Resources>
+
     <!-- 外层滚动容器：垂直滚动、水平自适应 -->
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
@@ -16,7 +52,8 @@
         <Grid Margin="0"
               HorizontalAlignment="Stretch"
               VerticalAlignment="Top"
-              Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
+              Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
+              Background="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}">
 
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -31,29 +68,29 @@
                 <ComboBox x:Name="StockTypeComboBox" Width="80" SelectedIndex="0" Margin="6,0"/>
                 <TextBlock x:Name="StockCode" Text="Stock Code:" VerticalAlignment="Center" Margin="6,0"/>
                 <ComboBox x:Name="CodeTextBox" Width="80" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
-                <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand"/>
-                <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80" Cursor="Hand"/>
+                <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
+                <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80" Cursor="Hand" />
                 <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80" Cursor="Hand"/>
-                <TextBlock x:Name="StockName" Text="" VerticalAlignment="Center" Foreground="Blue" Margin="6,0"/>
+                <TextBlock x:Name="StockName" Text="" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBlock x:Name="Fluctuation" Text="Fluctuation:" VerticalAlignment="Center" />
-                <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center" />
                 <CheckBox x:Name="AutoStopCheckBox" Content="Stop when closed" IsChecked="False" Margin="6,0" VerticalAlignment="Center"/>
                 <ComboBox x:Name="PeriodComboBox" Width="100" SelectedIndex="0" Margin="6,0"/>
                 <DatePicker x:Name="DatePickerControl" Width="110" Margin="6,0" IsEnabled="False"
                             SelectedDate="{x:Static sys:DateTime.Today}"
                             DisplayDateEnd="{x:Static sys:DateTime.Today}"
                             VerticalAlignment="Center"/>
-                <TextBlock x:Name="StatusText" Text="Please input code" VerticalAlignment="Center" Foreground="Blue" Margin="6,0"/>
+                <TextBlock x:Name="StatusText" Text="Stoped" VerticalAlignment="Center" Margin="6,0" />
             </StackPanel>
 
             <!-- 第二行：持仓信息 -->
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="1" HorizontalAlignment="Left">
-                <TextBlock x:Name="CurrentPrice1Label" Text="Current Price:" VerticalAlignment="Center" Margin="6,0" FontWeight="Bold"/>
-                <TextBox x:Name="CurrentPriceText" Width="60" Text="" IsReadOnly="True" BorderBrush="Blue"/>
-                <TextBlock x:Name="NumberSharesBox" Text="Number of Shares:" VerticalAlignment="Center" Margin="6,0"/>
+                <TextBlock x:Name="CurrentPrice1Label" Text="Current Price:" VerticalAlignment="Center" Margin="6,0" FontWeight="Bold" />
+                <TextBox x:Name="CurrentPriceText" Width="60" Text="" IsReadOnly="True" BorderBrush="Blue" />
+                <TextBlock x:Name="NumberSharesBox" Text="Number of Shares:" VerticalAlignment="Center" Margin="6,0" />
                 <TextBox x:Name="SharesBox" Width="80" Text="" />
                 <TextBlock Text="Cost Price:" VerticalAlignment="Center" Margin="6,0"/>
-                <TextBox x:Name="CostBox" Width="60" Text="" />
+                <TextBox x:Name="CostBox" Width="60" Text=""/>
                 <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="12,0"/>
                 <TextBlock x:Name="TodayProfitText" Text="Today: --" Margin="12,0"/>
             </StackPanel>
@@ -72,8 +109,10 @@
                     <!-- 副图：成交量 -->
                     <RowDefinition Height="1.5*"/>
                 </Grid.RowDefinitions>
-                <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" Grid.Row="0" HorizontalAlignment="Stretch" Margin="0,0,20,6"/>
-                <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="200" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,0,20,6" />
+                <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" Grid.Row="0" HorizontalAlignment="Stretch" Margin="0,0,20,6"
+                           Background="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}"/>
+                <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="200" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,0,20,6"
+                           Background="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
             </Grid>
         </Grid>
     </ScrollViewer>
