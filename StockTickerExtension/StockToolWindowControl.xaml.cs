@@ -365,10 +365,11 @@ namespace StockTickerExtension
 
             // 为价格图添加鼠标事件
 //             WpfPlotPrice.MouseWheel += OnKLineMouseWheel;
-//             WpfPlotPrice.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
-//             WpfPlotPrice.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
-            WpfPlotPrice.MouseMove += OnKLineMouseMove;
-            WpfPlotPrice.MouseLeave += OnWpf_MouseLeave;
+//             WpfPlotPrice.MouseLeftButtonDown += OnWpfMouseLeftButtonDown;
+//             WpfPlotPrice.MouseLeftButtonUp += OnWpfMouseLeftButtonUp;
+            WpfPlotPrice.MouseMove += OnWpfMouseMove;
+            WpfPlotPrice.MouseLeave += OnWpfMouseLeave;
+            WpfPlotPrice.RightClicked -= WpfPlotPrice.DefaultRightClickEvent;
 
             // 初始化十字线（只创建一次）
             if (_crosshair == null)
@@ -385,9 +386,9 @@ namespace StockTickerExtension
 
             // 为成交量图添加相同的鼠标事件，实现联动
 //             WpfPlotVolume.MouseWheel += OnKLineMouseWheel;
-//             WpfPlotVolume.MouseLeftButtonDown += OnKLineMouseLeftButtonDown;
-//             WpfPlotVolume.MouseLeftButtonUp += OnKLineMouseLeftButtonUp;
-//             WpfPlotVolume.MouseMove += OnKLineMouseMove;
+//             WpfPlotVolume.MouseLeftButtonDown += OnWpfMouseLeftButtonDown;
+//             WpfPlotVolume.MouseLeftButtonUp += OnWpfMouseLeftButtonUp;
+            WpfPlotVolume.RightClicked -= WpfPlotVolume.DefaultRightClickEvent;
 
             // 关键时间点
             var dateStr = _currentDate.ToString("yyyy-MM-dd ");
@@ -1961,7 +1962,7 @@ namespace StockTickerExtension
             WpfPlotVolume.Render();
         }
 
-        private void OnKLineMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void OnWpfMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (GetCurrentPeriod() == PeriodType.Intraday) return; // 分时图不处理拖拽
             
@@ -1980,7 +1981,7 @@ namespace StockTickerExtension
             sourceControl.CaptureMouse();
         }
 
-        private void OnKLineMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        private void OnWpfMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             if (GetCurrentPeriod() == PeriodType.Intraday) return;
             
@@ -1992,16 +1993,13 @@ namespace StockTickerExtension
             sourceControl.ReleaseMouseCapture();
         }
 
-        private void OnKLineMouseMove(object sender, MouseEventArgs e)
+        private void OnWpfMouseMove(object sender, MouseEventArgs e)
         {
-            // if (!_isDragging || GetChatType() == ChartType.Intraday) return;
-            if (_crosshair == null)
-                return;
-
             // 获取事件来源的控件
             var sourceControl = sender as ScottPlot.WpfPlot;
             if (sourceControl == null) return;
 
+            if (_crosshair != null)
             {
                 (double mouseX, double mouseY) = sourceControl.GetMouseCoordinates();
 
@@ -2065,17 +2063,9 @@ namespace StockTickerExtension
                 
                 _lastMousePosition = currentPos;
             }
-
-
-//             var plt = WpfPlotPrice.Plot;
-//             plt.Clear();
-//             plt.AddSignal(ScottPlot.DataGen.Sin(100));
-//             var ch = plt.AddCrosshair(50, 0);
-//             ch.IsVisible = true;
-//             WpfPlotPrice.Refresh();
         }
 
-        private void OnWpf_MouseLeave(object sender, MouseEventArgs e)
+        private void OnWpfMouseLeave(object sender, MouseEventArgs e)
         {
             if (_crosshair != null)
             {
