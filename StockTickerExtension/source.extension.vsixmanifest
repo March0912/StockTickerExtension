@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="StockTickerExtension.429be499-2ab4-4586-bdfa-3030cd46d30f" Version="1.0" Language="en-US" Publisher="March.XZY" />
+        <Identity Id="429be499-2ab4-4586-bdfa-3030cd46d30f" Version="1.0" Language="en-US" Publisher="March.XZY" />
         <DisplayName>StockWatcher</DisplayName>
         <Description xml:space="preserve">Stock Monitoring Assistant,Code by day, trade by tick.
 Pros watch the bull market closely.牛人紧盯牛市。</Description>
         <License>Resources\License.txt</License>
         <ReleaseNotes>Resources\ReleaseNotes.html</ReleaseNotes>
         <Icon>Resources\StockTicker.ico</Icon>
-        <PreviewImage>Resources\PreviewImg1png</PreviewImage>
+        <PreviewImage>Resources\PreviewImg1.png</PreviewImage>
         <Tags>Stock,StockMonitor</Tags>
         <Preview>true</Preview>
         <!-- VS 版本支持 -->
         <SupportedProducts>
+            <VisualStudio Version="16.0">
+                <Edition>Community</Edition>
+                <Edition>Professional</Edition>
+                <Edition>Enterprise</Edition>
+            </VisualStudio>
             <VisualStudio Version="17.0">
                 <Edition>Community</Edition>
                 <Edition>Professional</Edition>
@@ -20,8 +25,23 @@ Pros watch the bull market closely.牛人紧盯牛市。</Description>
             </VisualStudio>
         </SupportedProducts>
     </Metadata>
-    <Installation>
-        <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 18.0)">
+    <Installation AllUsers="true">
+        <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[16.0]">
+            <ProductArchitecture>x86</ProductArchitecture>
+        </InstallationTarget>
+        <InstallationTarget Version="[17.0,18.0)" Id="Microsoft.VisualStudio.Community">
+            <ProductArchitecture>amd64</ProductArchitecture>
+        </InstallationTarget>
+        <InstallationTarget Version="[16.0]" Id="Microsoft.VisualStudio.Enterprise">
+            <ProductArchitecture>x86</ProductArchitecture>
+        </InstallationTarget>
+        <InstallationTarget Version="[17.0,18.0)" Id="Microsoft.VisualStudio.Enterprise">
+            <ProductArchitecture>amd64</ProductArchitecture>
+        </InstallationTarget>
+        <InstallationTarget Version="[16.0]" Id="Microsoft.VisualStudio.Pro">
+            <ProductArchitecture>x86</ProductArchitecture>
+        </InstallationTarget>
+        <InstallationTarget Version="[17.0,18.0)" Id="Microsoft.VisualStudio.Pro">
             <ProductArchitecture>amd64</ProductArchitecture>
         </InstallationTarget>
     </Installation>
@@ -29,7 +49,7 @@ Pros watch the bull market closely.牛人紧盯牛市。</Description>
         <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.5,)" />
     </Dependencies>
     <Prerequisites>
-        <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,18.0)" DisplayName="Visual Studio core editor" />
+        <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[16.0,18.0)" DisplayName="Visual Studio core editor" />
     </Prerequisites>
     <Assets>
         <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
