@@ -1,0 +1,13 @@
+﻿<Window x:Class="StockTickerExtension.FuzzySearchDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Search" MaxHeight="350" MinHeight="150" Width="150"
+        WindowStyle="None" AllowsTransparency="True"
+        ShowInTaskbar="False" ResizeMode="NoResize" Topmost="True"
+        WindowStartupLocation="Manual">
+
+    <Border BorderThickness="0" CornerRadius="3">
+        <ListBox x:Name="ResultList" DisplayMemberPath="DisplayText" MouseDoubleClick="ListBox_MouseDoubleClickEvent" Margin="0,3,0,3"/>
+    </Border>
+    
+</Window>

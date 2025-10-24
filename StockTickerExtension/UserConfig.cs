@@ -7,7 +7,7 @@ namespace StockTickerExtension
 {
     public class UserConfig
     {
-        public StockType CurrentStockType { get; set; } = StockType.StockA;
+        public StockMarket CurrentStockType { get; set; } = StockMarket.StockA;
         public string CurrentStock { get; set; }
         public int CurrentShares { get; set; } = 0;         // 上次的持仓数量
         public float CurrentCostPrices { get; set; } = 0.0f;         // 上次的持仓成本
