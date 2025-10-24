@@ -1,4 +1,5 @@
-﻿using Microsoft.VisualStudio.PlatformUI;
+﻿using Microsoft.VisualStudio.OLE.Interop;
+using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
@@ -25,80 +26,13 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
 
 namespace StockTickerExtension
 {
-    public partial class StockSnapshot
-    {
-        public string Code { get; set; }
-        public string Name { get; set; }
-        public double CurrentPrice { get; set; }
-        /// <summary>
-        /// 开盘价
-        /// </summary>
-        public double[] OpenPrice { get; set; }
-        /// <summary>
-        /// 收盘价/实时价
-        /// </summary>
-        public double[] Prices { get; set; }
-        /// <summary>
-        /// 均线价
-        /// </summary>
-        public double[] AvgPrices { get; set; }
-        /// <summary>
-        /// 最高价
-        /// </summary>
-        public double[] HighPrices { get; set; }
-        /// <summary>
-        /// 最低价
-        /// </summary>
-        public double[] LowPrices { get; set; }
-        /// <summary>
-        /// 总成交量
-        /// </summary>
-        public double[] Volumes { get; set; }
-        /// <summary>
-        /// 买入成交量
-        /// </summary>
-        public double[] BuyVolumes { get; set; }
-        /// <summary>
-        /// 卖出成交量
-        /// </summary>
-        public double[] SellVolumes { get; set; }
-        /// <summary>
-        /// 涨跌幅
-        /// </summary>
-        public double? ChangePercent { get; set; }
-
-		// 预计算的均线（若可用，则用于绘图，确保从 x=0 开始）
-		public double[] MA5 { get; set; }
-		public double[] MA10 { get; set; }
-		public double[] MA20 { get; set; }
-		public double[] MA30 { get; set; }
-		public double[] MA60 { get; set; }
-    };
-
-    public enum PeriodType
-    {
-        Intraday = 0,
-        DailyK,
-        WeeklyK,
-        MonthlyK,
-        QuarterlyK,
-        YearlyK,
-    };
-
-    public enum StockType : int
-    {
-        StockA,
-        StockHK,
-        StockUS
-    };
-
     public partial class StockToolWindowControl : UserControl
     {
         private readonly StockToolWindow _ownerPane;
         private readonly ConfigManager _configManager = new ConfigManager();
         private readonly HttpClient _http = new HttpClient();
         private readonly ConcurrentQueue<StockSnapshot> _queue = new ConcurrentQueue<StockSnapshot>();
-        
+
         private CancellationTokenSource _cts;
         private DispatcherTimer _uiTimer;
         private List<string> _tradingMinutes;
@@ -107,13 +41,13 @@ namespace StockTickerExtension
         private bool _monitorOnce = false;
         private DateTime _currentDate;
         private CancellationTokenSource _kdjCts;
-        private StockType _stockType = StockType.StockA;
+        private StockMarket _stockType = StockMarket.StockA;
         StockSnapshot _currentSnapshot;
         private Crosshair _crosshair;
+        private FuzzySearchDialog _fuzzySearchDialog;
 
-
-        // K线图缩放和拖拽相关字段
-        private bool _isDragging = false;
+		// K线图缩放和拖拽相关字段
+		private bool _isDragging = false;
         private System.Windows.Point _lastMousePosition;
         private double _dragStartX = 0;
         private int _dragStartIndex = 0;
@@ -199,15 +133,9 @@ namespace StockTickerExtension
             StartBtn_Click(null, null);
         }
 
-        private void CodeTextBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-             StopBtn_Click(null, null);
-             StartBtn_Click(null, null);
-        }
-
         private void StockTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            _stockType = (StockType)StockTypeComboBox.SelectedIndex;
+            _stockType = (StockMarket)StockTypeComboBox.SelectedIndex;
             _tradingMinutes = BuildTradingMinutes(_currentDate);
         }
 
@@ -221,24 +149,47 @@ namespace StockTickerExtension
         {
             e.Handled = false;
         }
-
-        private void CodeTextBox_KeyUp(object sender, KeyEventArgs e)
+        private async void CodeTextBox_KeyUp(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
                 e.Handled = true; // 防止系统默认行为（例如“叮”声）
 
-                if (sender is ComboBox comboBox)
+                var comboBox = sender as ComboBox;
+                var text = comboBox.Text?.Trim();
+                if (string.IsNullOrEmpty(text))
                 {
-                    var text = comboBox.Text?.Trim();
-                    if (!string.IsNullOrEmpty(text))
+                    UpdateStatus("Please enter a stock code.", System.Windows.Media.Brushes.Red);
+                    return;
+                }
+				UpdateStatus($"Searching {text}...", System.Windows.Media.Brushes.GreenYellow);
+
+				bool isOnlyDigit = text.All(char.IsDigit);
+                if (isOnlyDigit)
+                {
+                   StopMonitoring();
+                   StartMonitoring();
+                }
+                else
+				{
+                    var idx = GetCodeTextBoxIndex(text);
+					if (idx >= 0)
                     {
-                        if (!_monitoring)
-                            StartBtn_Click(null, null);
+                        CodeTextBox.SelectedIndex = idx;
+                        StopMonitoring();
+                        StartMonitoring();
+                        return;
+					}
+
+					List<StockInfo> results = await SearchStocks(text);
+                    if (results.Count > 0)
+                    {
+                        UpdateStatus($"Search result: total {results.Count} stocks!", System.Windows.Media.Brushes.GreenYellow);
+                        ShowFuzzyDialog(results);
                     }
                     else
                     {
-                        UpdateStatus("Please enter a stock code.", System.Windows.Media.Brushes.Red);
+                        UpdateStatus("Search result: No data!", System.Windows.Media.Brushes.Red);
                     }
                 }
             }
@@ -311,7 +262,7 @@ namespace StockTickerExtension
 
             if(CodeTextBox.Items.Count == 0)
             {
-                UpdateStatus("Please enter a stock code.", System.Windows.Media.Brushes.Red);
+                UpdateStatus("Please enter or choose a stock code.", System.Windows.Media.Brushes.Red);
             }
 
             _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
@@ -325,11 +276,7 @@ namespace StockTickerExtension
             {
                 CodeTextBox.Items.Add(code);
             }
-
             CodeTextBox.Text = _configManager.Config.CurrentStock;
-
-            //有问题，先不启用
-//             CodeTextBox.SelectionChanged += CodeTextBox_SelectionChanged;    
         }
 
         private void InitStockTypeComboBox()
@@ -439,8 +386,7 @@ namespace StockTickerExtension
             // 设置当前控件
             if (obj is Control ctrl)
             {
-//                 ctrl.Background = bgBrush;
-                if (ctrl.Name != "StartBtn" && ctrl.Name != "StopBtn" && bgColor0.Name.ToLower() == "ff1f1f1f")
+                if (ctrl.Name != "StartBtn" && ctrl.Name != "StopBtn")
                     ctrl.Foreground = fgBrush;
 
                 if (ctrl is ComboBox combo)
@@ -506,11 +452,8 @@ namespace StockTickerExtension
             }
             else if (obj is TextBlock tb)
             {
-                tb.Foreground = fgBrush;
-            }
-            else if (obj is TextBox tbox)
-            {
-                tbox.Foreground = new SolidColorBrush(Colors.Red);
+				tb.Background = bgBrush;
+				tb.Foreground = fgBrush;
             }
             else
             {
@@ -561,12 +504,11 @@ namespace StockTickerExtension
             }
         }
 
-
         private List<string> BuildTradingMinutes(DateTime date)
         {
             var list = new List<string>();
 
-            if (_stockType == StockType.StockA)
+            if (_stockType == StockMarket.StockA)
             {
                 var t = date.AddHours(9).AddMinutes(30);
                 var end = date.AddHours(11).AddMinutes(30);
@@ -584,7 +526,7 @@ namespace StockTickerExtension
                     t = t.AddMinutes(1);
                 }
             }
-            else if( _stockType == StockType.StockHK)
+            else if( _stockType == StockMarket.StockHK)
             {
                 var t = date.AddHours(9).AddMinutes(30);
                 var end = date.AddHours(12).AddMinutes(00);
@@ -651,14 +593,14 @@ namespace StockTickerExtension
             });
         }
 
-        bool IsWeekend(DateTime dt) => dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday;
+        private bool IsWeekend(DateTime dt) => dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday;
 
-        bool IsTradingTime(DateTime dt)
+		private bool IsTradingTime(DateTime dt)
         {
             if (IsWeekend(dt))
                 return false;
 
-            if (_stockType == StockType.StockA)
+            if (_stockType == StockMarket.StockA)
             {
                 TimeSpan morningStart = new TimeSpan(9, 30, 0);
                 TimeSpan morningEnd = new TimeSpan(11, 30, 0);
@@ -669,7 +611,7 @@ namespace StockTickerExtension
                 return (nowTime >= morningStart && nowTime <= morningEnd) ||
                        (nowTime >= afternoonStart && nowTime <= afternoonEnd);
             }
-            else if (_stockType == StockType.StockHK)
+            else if (_stockType == StockMarket.StockHK)
             {
                 TimeSpan morningStart = new TimeSpan(9, 30, 0);
                 TimeSpan morningEnd = new TimeSpan(12, 00, 0);
@@ -699,12 +641,12 @@ namespace StockTickerExtension
             }
         }
 
-        bool CheckTradingTime()
+		private bool CheckTradingTime()
         {
             var codeName = CodeTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(codeName))
             {
-                UpdateStatus("Error: Please enter a stock code", System.Windows.Media.Brushes.Red);
+                UpdateStatus("Error: Please enter or choose a stock code", System.Windows.Media.Brushes.Red);
                 return false;
             }
 
@@ -718,7 +660,17 @@ namespace StockTickerExtension
             return true;
         }
 
-        private void StartMonitoring()
+        private int GetCodeTextBoxIndex(string text)
+        {
+            foreach (var item in CodeTextBox.Items)
+            {
+                if (item.ToString().Contains(text))
+                    return CodeTextBox.Items.IndexOf(item);
+            }
+            return -1;
+        }
+
+		private void StartMonitoring()
         {
             PeriodType period = (PeriodType)PeriodComboBox.SelectedIndex;
             if (!CheckTradingTime())
@@ -739,7 +691,7 @@ namespace StockTickerExtension
             {
                 return; 
             }
-
+            
             var code = codeName.Split(' ')[0];
             _cts = new CancellationTokenSource();
             _ =Task.Run(() => MonitorLoopAsync(code, period, _cts.Token));
@@ -1089,7 +1041,7 @@ namespace StockTickerExtension
             string secId = code;
             switch (_stockType)
             {
-                case StockType.StockA:
+                case StockMarket.StockA:
                     {
                         char first = code[0];
                         if (first == '0' || first == '2' || first == '3')
@@ -1102,12 +1054,12 @@ namespace StockTickerExtension
                         }
                         break;
                     }
-                case StockType.StockHK:
+                case StockMarket.StockHK:
                     {
                         secId = "116." + code;
                         break;
                     }
-                case StockType.StockUS:
+                case StockMarket.StockUS:
                     {
                         secId = "105." + code;
                         break;
@@ -1128,7 +1080,7 @@ namespace StockTickerExtension
             {
                 _currentSnapshot = snap;
 
-                if (string.IsNullOrEmpty(CodeTextBox.Text))
+                if (CodeTextBox.Text.StartsWith(snap.Code) && !CodeTextBox.Text.EndsWith(snap.Name))
                 {
                     CodeTextBox.Text = snap.Code + " " + snap.Name;
                 }
@@ -1270,9 +1222,9 @@ namespace StockTickerExtension
             // 设置坐标轴
             var dateStr = _currentDate.ToString("yyyy-MM-dd ");
             string[] labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
-            if (_stockType == StockType.StockA)
+            if (_stockType == StockMarket.StockA)
                 labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
-            else if(_stockType == StockType.StockHK)
+            else if(_stockType == StockMarket.StockHK)
                 labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00", dateStr + "15:30", dateStr + "16:00" };
             else
             {
@@ -2127,7 +2079,7 @@ namespace StockTickerExtension
 
         public void SaveConfig()
         {
-            _configManager.Config.CurrentStockType = (StockType)StockTypeComboBox.SelectedIndex;
+            _configManager.Config.CurrentStockType = (StockMarket)StockTypeComboBox.SelectedIndex;
             _configManager.Config.CurrentStock = CodeTextBox.Text.Trim();
             _configManager.Config.AutoStopOnClose = AutoStopCheckBox.IsChecked == true;
             
@@ -2206,5 +2158,95 @@ namespace StockTickerExtension
                 return Colors.Transparent;
             }
         }
-    }
+
+        StockMarket ToStockMarket(string code)
+        {
+            StockMarket sm = StockMarket.StockA;
+            switch (code.ToLower())
+            {
+                case "neeq":       //科创板、北交所、新三板等
+				case "23":  //科创板
+                case "astock":
+                    sm = StockMarket.StockA;
+                    break;
+                case "hk":
+                    sm = StockMarket.StockHK;
+                    break;
+                case "usstock":
+                    sm = StockMarket.StockUS;
+                    break;
+                default:
+                    sm = StockMarket.StockA;
+                    break;
+            }
+            return sm;
+        }
+
+        private async Task<List<StockInfo>> SearchStocks(string keyword)
+        {
+            var list = new List<StockInfo>();
+
+            // 东方财富搜索接口
+            string url = $"https://searchapi.eastmoney.com/api/suggest/get?input={keyword}&type=14&count=100";
+
+            HttpClient client = new HttpClient();
+            client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
+            using (var resp = await client.GetAsync(url))
+            {
+                if (!resp.IsSuccessStatusCode)
+                    return null;
+
+                string text = await resp.Content.ReadAsStringAsync();
+                var jObj = JObject.Parse(text);
+                var results = jObj["QuotationCodeTable"]?["Data"];
+                if (results != null)
+                {
+                    foreach (var item in results)
+                    {
+                        var classify = item["Classify"]?.ToString();
+                        classify = classify.ToLower();
+                        if (classify != "astock" && classify != "23" && classify != "hk" && classify != "usstock")
+                        {
+                            continue;
+                        }
+                        var type = ToStockMarket(classify);
+                        if(type == _stockType)
+                        {
+							list.Add(new StockInfo
+							{
+								Code = item["Code"]?.ToString(),
+								Name = item["Name"]?.ToString(),
+								StockType = ToStockMarket(classify)
+							});
+						}						
+                    }
+                }
+            }
+
+            return list;
+        }
+
+        private void ShowFuzzyDialog(List<StockInfo> list)
+        {
+            _fuzzySearchDialog?.Close();
+			_fuzzySearchDialog = new FuzzySearchDialog(list)
+			{
+			    Owner = Window.GetWindow(this)
+			};
+
+			_fuzzySearchDialog.StockSelected += info => 
+            {
+				CodeTextBox.Text = info.Code + " " + info.Name;
+				StopMonitoring();
+				StartMonitoring();
+			};
+
+			var transform = CodeTextBox.TransformToAncestor(this);
+			var pos = transform.Transform(new System.Windows.Point(0, CodeTextBox.ActualHeight));
+            var screenPos = CodeTextBox.PointToScreen(pos);
+			_fuzzySearchDialog.Left = screenPos.X;
+			_fuzzySearchDialog.Top = screenPos.Y;
+			_fuzzySearchDialog.Show();
+        }
+	}
 }

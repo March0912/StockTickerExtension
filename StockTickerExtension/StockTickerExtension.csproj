@@ -51,6 +51,9 @@
   <ItemGroup>
     <Compile Include="Logger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="FuzzySearchDialog.xaml.cs">
+      <DependentUpon>FuzzySearchDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="StockStatusBarUpdater.cs" />
     <Compile Include="StockTickerExtensionPackage.cs" />
     <Compile Include="StockToolWindow.cs" />
@@ -100,6 +103,10 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <Page Include="FuzzySearchDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="StockToolWindowControl.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>

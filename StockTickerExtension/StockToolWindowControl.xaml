@@ -43,7 +43,7 @@
 
     <!-- 外层滚动容器：垂直滚动、水平自适应 -->
     <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
+                  HorizontalScrollBarVisibility="Auto"
                   VerticalAlignment="Stretch"
                   HorizontalAlignment="Stretch"
                   PreviewMouseWheel="ScrollViewer_PreviewMouseWheel">
@@ -66,21 +66,18 @@
             <!-- 顶部控制面板 -->
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="0" HorizontalAlignment="Left">
                 <ComboBox x:Name="StockTypeComboBox" Width="80" SelectedIndex="0" Margin="6,0"/>
-                <TextBlock x:Name="StockCode" Text="Stock Code:" VerticalAlignment="Center" Margin="6,0"/>
-                <ComboBox x:Name="CodeTextBox" Width="120" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
+                <TextBlock x:Name="StockCode" Text="Watchlist:" VerticalAlignment="Center" Margin="6,0"/>
+                <ComboBox x:Name="CodeTextBox" Width="150" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
                 <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80" Cursor="Hand" />
                 <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80" Cursor="Hand"/>
                 <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
-                <Button x:Name="RemoveBtn" Content="-" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
-                <TextBlock x:Name="Fluctuation" Text="Fluctuation:" VerticalAlignment="Center" />
-                <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center" />
-                <CheckBox x:Name="AutoStopCheckBox" Content="Stop when closed" IsChecked="False" Margin="6,0" VerticalAlignment="Center"/>
+                <Button x:Name="RemoveBtn" Content="-" Margin="3,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
+                <CheckBox x:Name="AutoStopCheckBox" Content="Stop when closed" IsChecked="False" Margin="10,0" VerticalAlignment="Center"/>
                 <ComboBox x:Name="PeriodComboBox" Width="100" SelectedIndex="0" Margin="6,0"/>
                 <DatePicker x:Name="DatePickerControl" Width="110" Margin="6,0" IsEnabled="False"
                             SelectedDate="{x:Static sys:DateTime.Today}"
                             DisplayDateEnd="{x:Static sys:DateTime.Today}"
-                            VerticalAlignment="Center"/>
-                <TextBlock x:Name="StatusText" Text="Stoped" VerticalAlignment="Center" Margin="6,0" />
+                            VerticalAlignment="Center"/>                
             </StackPanel>
 
             <!-- 第二行：持仓信息 -->
@@ -91,8 +88,11 @@
                 <TextBox x:Name="SharesBox" Width="80" Text="" />
                 <TextBlock Text="Cost Price:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBox x:Name="CostBox" Width="60" Text=""/>
-                <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="12,0"/>
-                <TextBlock x:Name="TodayProfitText" Text="Today: --" Margin="12,0"/>
+                <TextBlock x:Name="Fluctuation" Text="Fluctuation:" VerticalAlignment="Center" Margin="6,0"/>
+                <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center" />
+                <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="6,0"/>
+                <TextBlock x:Name="TodayProfitText" Text="Today: --" Margin="6,0"/>
+                <TextBlock x:Name="StatusText" Text="Stoped" VerticalAlignment="Center" Margin="6,0" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="2" HorizontalAlignment="Left">
                 <CheckBox x:Name="MA5" Content="MA5" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Black" Cursor="Hand"/>

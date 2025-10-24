@@ -154,7 +154,81 @@ namespace StockTickerExtension
 
             return result;
         }
-
-
     }
+
+	public partial class StockSnapshot
+	{
+		public string Code { get; set; }
+		public string Name { get; set; }
+		public double CurrentPrice { get; set; }
+		/// <summary>
+		/// 开盘价
+		/// </summary>
+		public double[] OpenPrice { get; set; }
+		/// <summary>
+		/// 收盘价/实时价
+		/// </summary>
+		public double[] Prices { get; set; }
+		/// <summary>
+		/// 均线价
+		/// </summary>
+		public double[] AvgPrices { get; set; }
+		/// <summary>
+		/// 最高价
+		/// </summary>
+		public double[] HighPrices { get; set; }
+		/// <summary>
+		/// 最低价
+		/// </summary>
+		public double[] LowPrices { get; set; }
+		/// <summary>
+		/// 总成交量
+		/// </summary>
+		public double[] Volumes { get; set; }
+		/// <summary>
+		/// 买入成交量
+		/// </summary>
+		public double[] BuyVolumes { get; set; }
+		/// <summary>
+		/// 卖出成交量
+		/// </summary>
+		public double[] SellVolumes { get; set; }
+		/// <summary>
+		/// 涨跌幅
+		/// </summary>
+		public double? ChangePercent { get; set; }
+
+		// 预计算的均线（若可用，则用于绘图，确保从 x=0 开始）
+		public double[] MA5 { get; set; }
+		public double[] MA10 { get; set; }
+		public double[] MA20 { get; set; }
+		public double[] MA30 { get; set; }
+		public double[] MA60 { get; set; }
+	};
+
+	public enum PeriodType
+	{
+		Intraday = 0,
+		DailyK,
+		WeeklyK,
+		MonthlyK,
+		QuarterlyK,
+		YearlyK,
+	};
+
+	public enum StockMarket : int
+	{
+		StockA,
+		StockHK,
+		StockUS
+	};
+	public class StockInfo
+	{
+		public string Code { get; set; }
+		public string Name { get; set; }
+		public StockMarket StockType { get; set; }
+
+		//         public string DisplayText => $"{Name} ({Code}) [{StockType}]";
+	}
+
 }
