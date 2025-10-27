@@ -51,8 +51,9 @@ namespace StockTickerExtension
         private System.Windows.Point _lastMousePosition;
         private double _dragStartX = 0;
         private int _dragStartIndex = 0;
+		private bool _isDropdownOpened = false;
 
-        const string s_trendsURL = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
+		const string s_trendsURL = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
         const string s_klineURL = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
 
         public StockToolWindowControl(ToolWindowPane owner)
@@ -95,15 +96,14 @@ namespace StockTickerExtension
                 MA30.IsEnabled = false;
                 MA60.IsEnabled = false;
 
-                WpfPlotPrice.Plot.Clear();
+				WpfPlotPrice.Plot.Clear();
+				WpfPlotPrice.Height = 240;
                 WpfPlotPrice.Configuration.ScrollWheelZoom = false;
                 WpfPlotPrice.Configuration.LeftClickDragPan = false;
-                WpfPlotPrice.Render();
 
                 WpfPlotVolume.Visibility = Visibility.Hidden;
                 WpfPlotVolume.Configuration.ScrollWheelZoom = false;
                 WpfPlotVolume.Configuration.LeftClickDragPan = false;
-                WpfPlotVolume.Render();
             }
             else
             {
@@ -120,14 +120,14 @@ namespace StockTickerExtension
                 MA30.IsChecked = _configManager.Config.MA30Checked;
                 MA60.IsChecked = _configManager.Config.MA60Checked;
 
-                WpfPlotPrice.Configuration.ScrollWheelZoom = false;
+				WpfPlotPrice.Plot.Clear();
+				WpfPlotPrice.Height = 400;
+				WpfPlotPrice.Configuration.ScrollWheelZoom = false;
                 WpfPlotPrice.Configuration.LeftClickDragPan = false;
-                WpfPlotPrice.Render();
 
                 WpfPlotVolume.Configuration.ScrollWheelZoom = false;
                 WpfPlotVolume.Configuration.LeftClickDragPan = false;
                 WpfPlotVolume.Visibility = Visibility.Visible;
-                WpfPlotVolume.Render();
             }
 
             StartBtn_Click(null, null);
@@ -181,7 +181,7 @@ namespace StockTickerExtension
                         return;
 					}
 
-					List<StockInfo> results = await SearchStocks(text);
+					List<StockInfo> results = await SearchStocks_Async(text);
                     if (results.Count > 0)
                     {
                         UpdateStatus($"Search result: total {results.Count} stocks!", System.Windows.Media.Brushes.GreenYellow);
@@ -195,7 +195,19 @@ namespace StockTickerExtension
             }
         }
 
-        private void AddBtn_Click(object sender, System.Windows.RoutedEventArgs e)
+		private void CodeTextBox_DropDownClosed(object sender, EventArgs e)
+        {
+			var comboBox = sender as ComboBox;
+			var text = comboBox.SelectedItem?.ToString();
+            if (!string.IsNullOrEmpty(text))
+            {
+                StopMonitoring();
+                StartMonitoring(text);
+            }
+            _isDropdownOpened = false;
+		}
+                
+		private void AddBtn_Click(object sender, System.Windows.RoutedEventArgs e)
         {
             var text = CodeTextBox.Text?.Trim();
             if (!string.IsNullOrEmpty(text))
@@ -271,8 +283,10 @@ namespace StockTickerExtension
         private void InitCodeTextBox()
         {
             CodeTextBox.KeyUp += CodeTextBox_KeyUp;
+            CodeTextBox.DropDownOpened += (s, e) => { _isDropdownOpened = true; };
+            CodeTextBox.DropDownClosed += CodeTextBox_DropDownClosed;
 
-            foreach (var code in _configManager.Config.WatchStockList)
+			foreach (var code in _configManager.Config.WatchStockList)
             {
                 CodeTextBox.Items.Add(code);
             }
@@ -670,7 +684,7 @@ namespace StockTickerExtension
             return -1;
         }
 
-		private void StartMonitoring()
+		private void StartMonitoring(string text = "")
         {
             PeriodType period = (PeriodType)PeriodComboBox.SelectedIndex;
             if (!CheckTradingTime())
@@ -686,7 +700,7 @@ namespace StockTickerExtension
             StopMonitoring();
             _monitoring = true;
 
-            var codeName = CodeTextBox.Text?.Trim();
+            var codeName = string.IsNullOrEmpty(text) ? CodeTextBox.Text?.Trim() : text;
             if(codeName == null)
             {
                 return; 
@@ -739,14 +753,16 @@ namespace StockTickerExtension
             _kdjCts?.Cancel();
             _kdjCts = null;
 
-            UpdateStatus("Conitoring stopped", System.Windows.Media.Brushes.Green);
+			UpdateStatus($"{_currentSnapshot.Code} {_currentSnapshot.Name} Conitoring stopped", System.Windows.Media.Brushes.Green);
             if (_uiTimer.IsEnabled) 
                 _uiTimer.Stop();
 
             Logger.Info("Monitoring stoped!");
-        }
 
-        private string PeriodToKType(PeriodType period)
+// 			System.Threading.Thread.Sleep(200);
+		}
+
+		private string PeriodToKType(PeriodType period)
         {
             string kType;
             switch (period)
@@ -826,19 +842,20 @@ namespace StockTickerExtension
 
             var kType = PeriodToKType(period);
 
-			string begStr;
+            int dayCount = 150;
+                string begStr;
 			if(period == PeriodType.DailyK)
-				begStr = _currentDate.AddDays(-240).ToString("yyyyMMdd"); // 多取 40 天以支持 MA 引导
+				begStr = _currentDate.AddDays(-dayCount).ToString("yyyyMMdd"); // 多取 40 天以支持 MA 引导
             else if (period == PeriodType.WeeklyK)
-                begStr = _currentDate.AddDays(-240*7).ToString("yyyyMMdd");
+                begStr = _currentDate.AddDays(-dayCount * 7).ToString("yyyyMMdd");
             else if (period == PeriodType.MonthlyK)
-                begStr = _currentDate.AddMonths(-240).ToString("yyyyMMdd");
+                begStr = _currentDate.AddMonths(-dayCount*4).ToString("yyyyMMdd");
             else if (period == PeriodType.QuarterlyK)
-                begStr = _currentDate.AddMonths(-240*4).ToString("yyyyMMdd");
+                begStr = _currentDate.AddMonths(-dayCount * 10).ToString("yyyyMMdd");
             else if (period == PeriodType.YearlyK)
                 begStr = _currentDate.AddYears(-10).ToString("yyyyMMdd");
             else
-                begStr = _currentDate.AddDays(-240).ToString("yyyyMMdd");
+                begStr = _currentDate.AddDays(-dayCount).ToString("yyyyMMdd");
 
             string dateStr = _currentDate.ToString("yyyyMMdd");
             var parameters = $"?secid={secid}&klt={kType}&fqt=1&beg={begStr}&end={dateStr}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57,f58";
@@ -1080,10 +1097,10 @@ namespace StockTickerExtension
             {
                 _currentSnapshot = snap;
 
-                if (CodeTextBox.Text.StartsWith(snap.Code) && !CodeTextBox.Text.EndsWith(snap.Name))
-                {
-                    CodeTextBox.Text = snap.Code + " " + snap.Name;
-                }
+//                 if (CodeTextBox.Text.StartsWith(snap.Code) && !CodeTextBox.Text.EndsWith(snap.Name))
+//                 {
+//                     CodeTextBox.Text = snap.Code + " " + snap.Name;
+//                 }
 
                 if (string.IsNullOrEmpty(StatusText.Text))
                 {
@@ -1976,6 +1993,10 @@ namespace StockTickerExtension
                 sourceControl.Cursor = Cursors.Cross;
 
                 string time = _tradingMinutes[index].Split(' ')[1]; // 显示HH:mm
+                if(GetCurrentPeriod() != PeriodType.Intraday)
+                {
+                    time = _tradingMinutes[index].Split(' ')[0]; // 显示YYYY-MM-DD
+                }
                 var y = mouseY;// prices[index];
 
                 // 更新十字线位置与标签
@@ -1984,7 +2005,7 @@ namespace StockTickerExtension
                 _crosshair.Y = y;
                 _crosshair.Label = $"{time} {y:F2}";
                 _crosshair.HorizontalLine.PositionFormatter = v => $"{y:F2}";
-                _crosshair.VerticalLine.PositionFormatter = v => $"{_tradingMinutes[index].Split(' ')[1]}";
+                _crosshair.VerticalLine.PositionFormatter = v => $"{time}";
                 _crosshair.HorizontalLine.Color = System.Drawing.Color.Red;
                 _crosshair.VerticalLine.Color = System.Drawing.Color.Red;
 
@@ -2064,13 +2085,13 @@ namespace StockTickerExtension
 
                 if (isGolden)
                 {
-                    string str = $"*************** {t} KDJ Golden Cross signal！***************";
+                    string str = $"*************** {snap.Code} {snap.Name} {t} KDJ Golden Cross signal！***************";
                     UpdateStatus(str, System.Windows.Media.Brushes.Green);
                     UpdateVSStatus(str);
                 }
                 else if (isDeath)
                 {
-                    string str = $"*************** {t} KDJ Death Cross signal！***************";
+                    string str = $"*************** {snap.Code} {snap.Name} {t} KDJ Death Cross signal！***************";
                     UpdateStatus(str, System.Windows.Media.Brushes.Red);
                     UpdateVSStatus(str);
                 }
@@ -2105,45 +2126,6 @@ namespace StockTickerExtension
             _configManager.Save();
         }
 
-        private void TryLoadVsBrush(string vsBrushFieldName, string localResourceKey, System.Windows.Media.Color fallbackColor)
-        {
-            try
-            {
-                // 尝试在常见的两个程序集名字下寻找类型（兼容不同 VS/SDK 版本）
-                Type vsBrushesType = Type.GetType("Microsoft.VisualStudio.PlatformUI.VsBrushes, Microsoft.VisualStudio.Shell.15.0")
-                                    ?? Type.GetType("Microsoft.VisualStudio.PlatformUI.VsBrushes, Microsoft.VisualStudio.Shell");
-
-                if (vsBrushesType != null)
-                {
-                    // 字段名例如 "ToolWindowBackgroundKey", "ToolWindowTextKey", "CommandBarGradientBeginKey" ...
-                    FieldInfo fi = vsBrushesType.GetField(vsBrushFieldName, BindingFlags.Public | BindingFlags.Static);
-                    if (fi != null)
-                    {
-                        object keyObj = fi.GetValue(null);
-                        // vsBrushes 的字段通常是 ComponentResourceKey
-                        if (keyObj is ComponentResourceKey compKey)
-                        {
-                            // TryFindResource 在不同上下文可用（Window/UserControl）。我们用 this.TryFindResource
-                            var res = this.TryFindResource(compKey);
-                            if (res is SolidColorBrush scb)
-                            {
-                                // 覆盖/设置到本控件资源字典中
-                                this.Resources[localResourceKey] = scb;
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // 忽略所有异常，走 fallback
-            }
-
-            // fallback：如果读取失败，用一个简单的 SolidColorBrush 填充 XAML 中的本地 key
-            this.Resources[localResourceKey] = new SolidColorBrush(fallbackColor);
-        }
-
         private System.Windows.Media.Color ColorFromHex(string hex, double opacity = 1.0)
         {
             // hex like "#RRGGBB" or "#AARRGGBB"
@@ -2159,7 +2141,7 @@ namespace StockTickerExtension
             }
         }
 
-        StockMarket ToStockMarket(string code)
+        private StockMarket ToStockMarket(string code)
         {
             StockMarket sm = StockMarket.StockA;
             switch (code.ToLower())
@@ -2182,7 +2164,7 @@ namespace StockTickerExtension
             return sm;
         }
 
-        private async Task<List<StockInfo>> SearchStocks(string keyword)
+        private async Task<List<StockInfo>> SearchStocks_Async(string keyword)
         {
             var list = new List<StockInfo>();
 
