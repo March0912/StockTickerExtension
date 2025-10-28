@@ -895,6 +895,8 @@ namespace StockTickerExtension
             var prices = new double[count];
             var avgPrices = new double[count];
             var vols = new double[count];
+            var buyVols = new double[count];
+            var sellVols = new double[count];
             var highs = new double[count];
             var lows = new double[count];
             var openPrice = new double[count];
@@ -919,7 +921,41 @@ namespace StockTickerExtension
                 vols[i] = vol;
             }
 
-			double lastPrice = prices.Last();
+            for (int i = 0; i < count; i++)
+            {
+                if (i == 0)
+                {
+                    buyVols[i] = vols[i] * 0.5;
+                    sellVols[i] = vols[i] * 0.5;
+                }
+                else
+                {
+                    double cur = prices[i];
+                    double prev = prices[i - 1];
+                    if (double.IsNaN(cur) || double.IsNaN(prev))
+                    {
+                        buyVols[i] = vols[i] * 0.5;
+                        sellVols[i] = vols[i] * 0.5;
+                    }
+                    else if (cur > prev)
+                    {
+                        buyVols[i] = vols[i];
+                        sellVols[i] = 0;
+                    }
+                    else if (cur < prev)
+                    {
+                        buyVols[i] = 0;
+                        sellVols[i] = vols[i];
+                    }
+                    else
+                    {
+                        buyVols[i] = vols[i] * 0.5;
+                        sellVols[i] = vols[i] * 0.5;
+                    }
+                }
+            }
+
+            double lastPrice = prices.Last();
 			double changePercent = (count >= 2) ? (lastPrice - prices[count - 2]) / prices[count - 2] * 100 : 0;
 
 			// 计算严格窗口的全序列均线
@@ -939,8 +975,8 @@ namespace StockTickerExtension
                 LowPrices = lows,
                 AvgPrices = avgPrices,
                 Volumes = vols,
-                BuyVolumes = vols.Select(v => v * 0.5).ToArray(),
-                SellVolumes = vols.Select(v => v * 0.5).ToArray(),
+                BuyVolumes = buyVols,
+                SellVolumes = sellVols,
                 KLineDates = kLineDates,
                 CurrentPrice = lastPrice,
 				ChangePercent = changePercent,
@@ -1132,7 +1168,7 @@ namespace StockTickerExtension
 
                 UpdateProfitDisplay();
 
-                if (GetCurrentPeriod() != PeriodType.Intraday)
+                if (GetCurrentPeriod() == PeriodType.DailyK || GetCurrentPeriod() == PeriodType.WeeklyK || GetCurrentPeriod() == PeriodType.MonthlyK)
                 {
                     CheckKdjGoldenCross(snap);
                 }
@@ -1601,39 +1637,38 @@ namespace StockTickerExtension
             WpfPlotVolume.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
             WpfPlotVolume.Visibility = Visibility.Visible;
 
-            // 将成交量转换为“手”（如果你的数据是股数），这里除以100；若已经是手则把 /100 去掉
-            double[] volsScaled = snap.Volumes?.Select(v => v).ToArray() ?? new double[count];
-
-            // 保证 volsScaled 长度等于 count
-            if (volsScaled.Length != count)
-            {
-                var tmp = new double[count];
-                for (int i = 0; i < count && i < volsScaled.Length; i++)
-                {
-                    tmp[i] = volsScaled[i];
-                }
-                volsScaled = tmp;
-            }
-
+            double[] volsScaled = snap.Volumes?.Select(v => v/100).ToArray() ?? new double[count];
             // 为成交量设置颜色：用买/卖分开绘制（若有），否则按涨跌绘色
-            if (snap.BuyVolumes != null && snap.SellVolumes != null && snap.BuyVolumes.Length == count && snap.SellVolumes.Length == count)
+            if (snap.BuyVolumes != null && snap.SellVolumes != null)
             {
                 // 使用 buy/sell 绘制两组柱
-                var buyScaled = snap.BuyVolumes.Select(v => v).ToArray();
-                var sellScaled = snap.SellVolumes.Select(v =>v).ToArray();
+                var buyScaled = snap.BuyVolumes.Select(v => v/100).ToArray();
+                var sellScaled = snap.SellVolumes.Select(v => v / 100).ToArray();
 
-                var barBuy = WpfPlotVolume.Plot.AddBar(buyScaled, xs);
-                barBuy.FillColor = System.Drawing.Color.Red;
-                barBuy.BarWidth = 0.5;
-                barBuy.BorderLineWidth = 0;
+                // 使用 buy/sell 绘制两组柱
+                var buyBar = WpfPlotVolume.Plot.AddBar(buyScaled, xs);
+                buyBar.FillColor = System.Drawing.Color.Red;
+                buyBar.BarWidth = 0.5;
+                buyBar.BorderLineWidth = 0;
 
-                var barSell = WpfPlotVolume.Plot.AddBar(sellScaled, xs);
-                barSell.FillColor = System.Drawing.Color.Green;
-                barSell.BarWidth = 0.5;
-                barSell.BorderLineWidth = 0;
+                // 使用 buy/sell 绘制两组柱
+                var sellBar = WpfPlotVolume.Plot.AddBar(sellScaled, xs);
+                sellBar.FillColor = System.Drawing.Color.Green;
+                sellBar.BarWidth = 0.5;
+                sellBar.BorderLineWidth = 0;
             }
             else
             {
+                // 将成交量转换为“手”（如果你的数据是股数），这里除以100；若已经是手则把 /100 去掉
+                if (volsScaled.Length != count)
+                {
+                    var tmp = new double[count];
+                    for (int i = 0; i < count && i < volsScaled.Length; i++)
+                    {
+                        tmp[i] = volsScaled[i];
+                    }
+                    volsScaled = tmp;
+                }
                 // 单组成交量，颜色依据当天涨跌（或全部灰色）
                 var bars = WpfPlotVolume.Plot.AddBar(volsScaled, xs);
                 bars.FillColor = System.Drawing.Color.Gray;
@@ -1641,20 +1676,14 @@ namespace StockTickerExtension
                 bars.BorderLineWidth = 0;
             }
 
-            WpfPlotVolume.Plot.YLabel("Volume (Lots)");
-
             // 为成交量图设置相同的时间轴标签
             if (ticks.Count > 0)
                 WpfPlotVolume.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
             // 给成交量 Y 轴加一点上边距
             double maxVol = volsScaled.DefaultIfEmpty(0).Max();
-            WpfPlotVolume.Plot.SetAxisLimitsY(0, Math.Max(1e-6, maxVol * 1.2)); // 提高 20%
-
-            // 让两个图的 X 轴范围一致（关键）
-            WpfPlotPrice.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
-            WpfPlotVolume.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
-
+            WpfPlotVolume.Plot.SetAxisLimitsY(0, Math.Max(1e-6, maxVol * 1.2)); // 提高 20%                                                                                
+            WpfPlotVolume.Plot.YLabel("Volume (Lots)");
 
             if (crosshair != null)
             {
@@ -2084,8 +2113,8 @@ namespace StockTickerExtension
             {
                 try
                 {
-                    // 每分钟检测一次
-                    await Task.Delay(TimeSpan.FromMinutes(5), token);
+                    // 每10分钟检测一次
+                    await Task.Delay(TimeSpan.FromMinutes(10), token);
                     var kSnap = await FetchKLinesSnapshot_Async(code, PeriodType.DailyK);
                     CheckKdjGoldenCross(kSnap);
                 }
