@@ -715,7 +715,8 @@ namespace StockTickerExtension
             {
                 return; 
             }
-            
+            _currentSnapshot = null;
+
             var code = codeName.Split(' ')[0];
             _cts = new CancellationTokenSource();
             _ =Task.Run(() => MonitorLoopAsync(code, period, _cts.Token));
@@ -768,9 +769,6 @@ namespace StockTickerExtension
                 _uiTimer.Stop();
 
             Logger.Info("Monitoring stoped!");
-            _currentSnapshot = null;
-
-            // 			System.Threading.Thread.Sleep(200);
         }
 
         private string PeriodToKType(PeriodType period)
