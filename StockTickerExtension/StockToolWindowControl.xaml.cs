@@ -1,4 +1,5 @@
-﻿using Microsoft.VisualStudio.OLE.Interop;
+﻿using Microsoft.VisualStudio.ArchitectureTools.Telemetry;
+using Microsoft.VisualStudio.OLE.Interop;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
@@ -149,49 +150,57 @@ namespace StockTickerExtension
         {
             e.Handled = false;
         }
+
         private async void CodeTextBox_KeyUp(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
+            try
             {
-                e.Handled = true; // 防止系统默认行为（例如“叮”声）
-
-                var comboBox = sender as ComboBox;
-                var text = comboBox.Text?.Trim();
-                if (string.IsNullOrEmpty(text))
+                if (e.Key == Key.Enter)
                 {
-                    UpdateStatus("Please enter a stock code.", System.Windows.Media.Brushes.Red);
-                    return;
-                }
-				UpdateStatus($"Searching {text}...", System.Windows.Media.Brushes.GreenYellow);
+                    e.Handled = true; // 防止系统默认行为（例如“叮”声）
 
-				bool isOnlyDigit = text.All(char.IsDigit);
-                if (isOnlyDigit)
-                {
-                   StopMonitoring();
-                   StartMonitoring();
-                }
-                else
-				{
-                    var idx = GetCodeTextBoxIndex(text);
-					if (idx >= 0)
+                    var comboBox = sender as ComboBox;
+                    var text = comboBox.Text?.Trim();
+                    if (string.IsNullOrEmpty(text))
                     {
-                        CodeTextBox.SelectedIndex = idx;
+                        UpdateStatus("Please enter a stock code.", System.Windows.Media.Brushes.Red);
+                        return;
+                    }
+                    UpdateStatus($"Searching {text}...", System.Windows.Media.Brushes.GreenYellow);
+
+                    bool isOnlyDigit = text.All(char.IsDigit);
+                    if (isOnlyDigit)
+                    {
                         StopMonitoring();
                         StartMonitoring();
-                        return;
-					}
-
-					List<StockInfo> results = await SearchStocks_Async(text);
-                    if (results.Count > 0)
-                    {
-                        UpdateStatus($"Search result: total {results.Count} stocks!", System.Windows.Media.Brushes.GreenYellow);
-                        ShowFuzzyDialog(results);
                     }
                     else
                     {
-                        UpdateStatus("Search result: No data!", System.Windows.Media.Brushes.Red);
+                        var idx = GetCodeTextBoxIndex(text);
+                        if (idx >= 0)
+                        {
+                            CodeTextBox.SelectedIndex = idx;
+                            StopMonitoring();
+                            StartMonitoring();
+                            return;
+                        }
+
+                        List<StockInfo> results = await SearchStocks_Async(text);
+                        if (results.Count > 0)
+                        {
+                            UpdateStatus($"Search result: total {results.Count} stocks!", System.Windows.Media.Brushes.GreenYellow);
+                            ShowFuzzyDialog(results);
+                        }
+                        else
+                        {
+                            UpdateStatus("Search result: No data!", System.Windows.Media.Brushes.Red);
+                        }
                     }
                 }
+            }
+            catch(Exception ex)
+            {
+                Logger.Error($"CodeTextBox_KeyUp: {ex.Message}");
             }
         }
 
@@ -479,6 +488,7 @@ namespace StockTickerExtension
                 }
             }
         }
+
         private void ApplyThemeToCheckBoxChildren(DependencyObject obj)
         {
             if (obj is Path ph)
@@ -798,7 +808,7 @@ namespace StockTickerExtension
             {
                 try
                 {
-                    var snap = await FetchKSnapshot_Async(code, period);
+                    var snap = await FetchKLinesSnapshot_Async(code, period);
                     if (snap != null)
                     {
                         snap.Code = code;
@@ -832,10 +842,10 @@ namespace StockTickerExtension
             }
         }
 
-		private async Task<StockSnapshot> FetchKSnapshot_Async(string code, PeriodType period)
+		private async Task<StockSnapshot> FetchKLinesSnapshot_Async(string code, PeriodType period)
         {
             if(period == PeriodType.Intraday)
-               return await FetchSnapshot_Async(code);
+               return await FetchTrendsSnapshot_Async(code);
 
             var secid = GetSecId(code);
             if (secid == null) return null;
@@ -843,7 +853,7 @@ namespace StockTickerExtension
             var kType = PeriodToKType(period);
 
             int dayCount = 150;
-                string begStr;
+            string begStr;
 			if(period == PeriodType.DailyK)
 				begStr = _currentDate.AddDays(-dayCount).ToString("yyyyMMdd"); // 多取 40 天以支持 MA 引导
             else if (period == PeriodType.WeeklyK)
@@ -881,22 +891,25 @@ namespace StockTickerExtension
 
 			var name = dataObj["name"]?.ToString();
 			int count = klines.Length;
-			var prices = new double[count];
+            var prices = new double[count];
             var avgPrices = new double[count];
             var vols = new double[count];
             var highs = new double[count];
             var lows = new double[count];
             var openPrice = new double[count];
+            var kLineDates = new DateTime[count];
 
-			for (int i = 0; i < count; i++)
+            for (int i = 0; i < count; i++)
             {
                 var parts = klines[i].Split(',');
+                var date = parts[0].ToString();
                 double open = double.Parse(parts[1]);
                 double close = double.Parse(parts[2]);
                 double high = double.Parse(parts[3]);
                 double low = double.Parse(parts[4]);
                 double vol = double.Parse(parts[5]);
 
+                kLineDates[i] = DateTime.Parse(date);
                 openPrice[i] = open;
                 prices[i] = close;
                 highs[i] = high;
@@ -927,6 +940,7 @@ namespace StockTickerExtension
                 Volumes = vols,
                 BuyVolumes = vols.Select(v => v * 0.5).ToArray(),
                 SellVolumes = vols.Select(v => v * 0.5).ToArray(),
+                KLineDates = kLineDates,
                 CurrentPrice = lastPrice,
 				ChangePercent = changePercent,
 				MA5 = ma5full,
@@ -937,7 +951,7 @@ namespace StockTickerExtension
             };
         }
 
-        private async Task<StockSnapshot> FetchSnapshot_Async(string code)
+        private async Task<StockSnapshot> FetchTrendsSnapshot_Async(string code)
         {
             var secid = GetSecId(code);
             if (secid == null) return null;
@@ -1097,10 +1111,10 @@ namespace StockTickerExtension
             {
                 _currentSnapshot = snap;
 
-//                 if (CodeTextBox.Text.StartsWith(snap.Code) && !CodeTextBox.Text.EndsWith(snap.Name))
-//                 {
-//                     CodeTextBox.Text = snap.Code + " " + snap.Name;
-//                 }
+                if (CodeTextBox.Text != (snap.Code + " " + snap.Name))
+                {
+                    CodeTextBox.Text = snap.Code + " " + snap.Name;
+                }
 
                 if (string.IsNullOrEmpty(StatusText.Text))
                 {
@@ -1312,10 +1326,6 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.Clear();
             WpfPlotPrice.Plot.YAxis2.Ticks(false);
             WpfPlotPrice.Plot.YAxis2.Label("");
-            WpfPlotVolume.Plot.Clear();
-
-            // 确保成交量区可见
-            WpfPlotVolume.Visibility = Visibility.Visible;
 
             int count = snap.Prices.Length;
             var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
@@ -1326,65 +1336,23 @@ namespace StockTickerExtension
             var highs = snap.HighPrices ?? Enumerable.Repeat(double.NaN, count).ToArray();
             var lows = snap.LowPrices ?? Enumerable.Repeat(double.NaN, count).ToArray();
 
-            // 添加蜡烛图（若你的 ScottPlot 版本支持）
-            try
+            // 添加蜡烛图
+            var ohlcs = new List<ScottPlot.OHLC>();
+            for (int i = 0; i < count; i++)
             {
-                var ohlcs = new List<ScottPlot.OHLC>();
-                for (int i = 0; i < count; i++)
+                if (!double.IsNaN(opens[i]) && !double.IsNaN(highs[i]) &&
+                    !double.IsNaN(lows[i]) && !double.IsNaN(closes[i]))
                 {
-                    if (!double.IsNaN(opens[i]) && !double.IsNaN(highs[i]) &&
-                        !double.IsNaN(lows[i]) && !double.IsNaN(closes[i]))
-                    {
-                        ohlcs.Add(new ScottPlot.OHLC(opens[i], highs[i], lows[i], closes[i], xs[i], 1));
-                    }
-                }
-
-                // AddCandlesticks(opens, highs, lows, closes, xs)
-                var candles = WpfPlotPrice.Plot.AddCandlesticks(ohlcs.ToArray());
-                // 美化：涨红 跌绿，和宽度
-                candles.ColorUp = System.Drawing.Color.Red;
-                candles.ColorDown = System.Drawing.Color.Green;
-//              candles.CandleWidth = 0.6f; // 0..1 相对宽度
-            }
-            catch
-            {
-                // 退回到手动绘制（以防 AddCandlesticks 不可用）
-                // 用矩形/线绘制每根蜡烛（保证实体从 open 到 close，而不是从 0 开始）
-                for (int i = 0; i < count; i++)
-                {
-                    double x = xs[i];
-                    double open = opens[i];
-                    double close = closes[i];
-                    double high = highs[i];
-                    double low = lows[i];
-
-                    if (double.IsNaN(open) || double.IsNaN(close) || double.IsNaN(high) || double.IsNaN(low))
-                        continue;
-
-                    var color = close >= open ? System.Drawing.Color.Red : System.Drawing.Color.Green;
-
-                    // 影线（上下）
-                    WpfPlotPrice.Plot.AddLine(x, x, close > open ? close : open, low, color, lineWidth: 0.6f);
-                    WpfPlotPrice.Plot.AddLine(x, x, close > open ? close : open, high, color, lineWidth: 0.6f);
-
-                    // 实体：用 AddRectangle（x - w/2, min(open,close), width, height）
-                    double w = 0.6; // candle width in x-units
-                    double left = x - w / 2.0;
-                    double bottom = Math.Min(open, close);
-                    double height = Math.Abs(close - open);
-                    // Use AddRectangle - ScottPlot has AddRectangle in recent versions
-                    try
-                    {
-                        var rect = WpfPlotPrice.Plot.AddRectangle(left, bottom, w, height);
-                        rect.Color = color;
-                        rect.BorderColor = color;
-                    }
-                    catch
-                    {
-                        // 如果没有 AddRectangle 可用，退回不绘制实体（影线至少能看）
-                    }
+                    ohlcs.Add(new ScottPlot.OHLC(opens[i], highs[i], lows[i], closes[i], xs[i], 1));
                 }
             }
+
+            // AddCandlesticks(opens, highs, lows, closes, xs)
+            var candles = WpfPlotPrice.Plot.AddCandlesticks(ohlcs.ToArray());
+            // 美化：涨红 跌绿，和宽度
+            candles.ColorUp = System.Drawing.Color.Red;
+            candles.ColorDown = System.Drawing.Color.Green;
+//          candles.CandleWidth = 0.6f; // 0..1 相对宽度
 
             // X 轴对齐：使每个 candle 在整数位置（0..count-1）居中
             double xMin = -0.5;
@@ -1392,7 +1360,7 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
 
             // 设置 X 轴刻度 - 使用时间轴标签
-            var (ticks, labels) = GenerateTimeAxisLabels(GetCurrentPeriod(), count);
+            var (ticks, labels) = GenerateTimeAxisLabels(GetCurrentPeriod(), snap.KLineDates);
             if (ticks.Count > 0)
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
@@ -1630,6 +1598,7 @@ namespace StockTickerExtension
             // --- 2) 绘制成交量到下方 WpfPlotVolume 并对齐 X 轴 ---
             WpfPlotVolume.Plot.Clear();
             WpfPlotVolume.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
+            WpfPlotVolume.Visibility = Visibility.Visible;
 
             // 将成交量转换为“手”（如果你的数据是股数），这里除以100；若已经是手则把 /100 去掉
             double[] volsScaled = snap.Volumes?.Select(v => v).ToArray() ?? new double[count];
@@ -1821,77 +1790,123 @@ namespace StockTickerExtension
             return (PeriodType)PeriodComboBox.SelectedIndex;
         }
 
-        private (List<double> ticks, List<string> labels) GenerateTimeAxisLabels(PeriodType period, int dataCount)
+        private (List<double> ticks, List<string> labels) GenerateTimeAxisLabels(PeriodType period, DateTime[] dates)
         {
+            var dateCount = dates.Length;
             var ticks = new List<double>();
             var labels = new List<string>();
-            
+
             // 根据数据点数量确定标签密度
-            int labelInterval = Math.Max(1, dataCount / 8); // 最多显示8个标签
+            int labelInterval = Math.Max(dateCount, 10);
+            if (dateCount <= 10)
+            {
+                labelInterval = 1;
+            }
+            else// if (dateCount > 10)
+            {
+                labelInterval = Math.Max(1, dateCount / 10); // 最多显示10个标签
+            }
             
             // 根据不同的K线周期生成时间标签
             switch (period)
             {
                 case PeriodType.DailyK:
-                    // 日K线：显示日期，格式为 MM/dd
-                    for (int i = 0; i < dataCount; i += labelInterval)
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
                     {
                         // 从当前日期往前推算
-                        DateTime date = _currentDate.AddDays(-(dataCount - 1 - i));
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            _currentDate.AddDays(-(dateCount - 1 - i));
+                        }
                         ticks.Add(i);
                         labels.Add(date.ToString("MM/dd"));
                     }
-                    break;
-                    
+                    break;                    
                 case PeriodType.WeeklyK:
-                    // 周K线：显示周，格式为 MM/dd
-                    for (int i = 0; i < dataCount; i += labelInterval)
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
                     {
-                        DateTime date = _currentDate.AddDays(-(dataCount - 1 - i) * 7);
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            date = _currentDate.AddDays(-(dateCount - 1 - i) * 7);
+                        }
                         ticks.Add(i);
                         labels.Add(date.ToString("MM/dd"));
                     }
-                    break;
-                    
+                    break;                    
                 case PeriodType.MonthlyK:
-                    // 月K线：显示月份，格式为 yyyy/MM
-                    for (int i = 0; i < dataCount; i += labelInterval)
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
                     {
-                        DateTime date = _currentDate.AddMonths(-(dataCount - 1 - i));
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            date = _currentDate.AddMonths(-(dateCount - 1 - i));
+                        }
                         ticks.Add(i);
                         labels.Add(date.ToString("yyyy/MM"));
                     }
-                    break;
-                    
+                    break;                    
                 case PeriodType.QuarterlyK:
-                    // 季K线：显示季度，格式为 yyyy/Q
-                    for (int i = 0; i < dataCount; i += labelInterval)
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
                     {
-                        DateTime date = _currentDate.AddMonths(-(dataCount - 1 - i) * 3);
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            date = _currentDate.AddMonths(-(dateCount - 1 - i) * 3);
+                        }
                         ticks.Add(i);
                         labels.Add($"{date.Year}/Q{((date.Month - 1) / 3) + 1}");
                     }
-                    break;
-                    
+                    break;                    
                 case PeriodType.YearlyK:
-                    // 年K线：显示年份，格式为 yyyy
-                    for (int i = 0; i < dataCount; i += labelInterval)
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
                     {
-                        DateTime date = _currentDate.AddYears(-(dataCount - 1 - i));
-                        ticks.Add(i);
-                        labels.Add(date.ToString("yyyy"));
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            date = _currentDate.AddYears(-(dateCount - 1 - i));
+                        }
+                        var dStr = date.ToString("yyyy/MM");
+                        if (!labels.Contains(dStr))
+                        {
+                            ticks.Add(i);
+                            labels.Add(dStr);
+                        }
                     }
                     break;                    
                 default:
                     // 默认显示索引
-                    for (int i = 0; i < dataCount; i += labelInterval)
+                    for (int i = 0; i < dateCount; i += labelInterval)
                     {
                         ticks.Add(i);
                         labels.Add(i.ToString());
                     }
                     break;
             }
-            
+
+            ticks.Reverse();
+            labels.Reverse();
             return (ticks, labels);
         }
 
@@ -1973,18 +1988,21 @@ namespace StockTickerExtension
             {
                 (double mouseX, double mouseY) = sourceControl.GetMouseCoordinates();
 
+                var xTicks = WpfPlotPrice.Plot.XAxis.GetTicks();
+                var xTicksLen = _currentSnapshot == null ? 0 : _currentSnapshot.Prices?.Length ?? 0;
+
                 // 限制在范围内
-                if (mouseX < 0 || mouseX >= _tradingMinutes.Count)
+                if (mouseX < 0 || mouseX >= xTicksLen)
                     return;
 
                 // 找到最接近的点索引（四舍五入）
                 int index = (int)Math.Round(mouseX);
-                if (index < 0 || index >= _tradingMinutes.Count)
+                if (index < 0 || index >= xTicksLen)
                     return;
 
                 // 获取对应的价格
                 double[] prices = null;
-                if (index < _tradingMinutes.Count && index < _currentSnapshot?.Prices?.Length)
+                if (index < xTicksLen && index < _currentSnapshot?.Prices?.Length)
                     prices = _currentSnapshot.Prices;
 
                 if (prices == null || double.IsNaN(prices[index]))
@@ -2060,7 +2078,7 @@ namespace StockTickerExtension
                 {
                     // 每分钟检测一次
                     await Task.Delay(TimeSpan.FromMinutes(5), token);
-                    var kSnap = await FetchKSnapshot_Async(code, PeriodType.DailyK);
+                    var kSnap = await FetchKLinesSnapshot_Async(code, PeriodType.DailyK);
                     CheckKdjGoldenCross(kSnap);
                 }
                 catch (TaskCanceledException)
