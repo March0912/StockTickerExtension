@@ -764,7 +764,7 @@ namespace StockTickerExtension
             _kdjCts?.Cancel();
             _kdjCts = null;
 
-			UpdateStatus($"{_currentSnapshot.Code} {_currentSnapshot.Name} Conitoring stopped", System.Windows.Media.Brushes.Green);
+			UpdateStatus($"{_currentSnapshot?.Code} {_currentSnapshot?.Name} Conitoring stopped", System.Windows.Media.Brushes.Green);
             if (_uiTimer.IsEnabled) 
                 _uiTimer.Stop();
 
