@@ -26,18 +26,6 @@
         </Style>
 
         <!-- CheckBox 默认样式 -->
-        <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowTextBrushKey}}" />
-            <Setter Property="Background" Value="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
-            <Style.Triggers>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Foreground" Value="LightGreen"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.5"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
         
     </UserControl.Resources>
 
@@ -95,11 +83,11 @@
                 <TextBlock x:Name="StatusText" Text="Stoped" VerticalAlignment="Center" Margin="6,0" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="2" HorizontalAlignment="Left">
-                <CheckBox x:Name="MA5" Content="MA5" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Black" Cursor="Hand"/>
-                <CheckBox x:Name="MA10" Content="MA10" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Orange" Cursor="Hand"/>
-                <CheckBox x:Name="MA20" Content="MA20" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="MediumVioletRed" Cursor="Hand"/>
-                <CheckBox x:Name="MA30" Content="MA30" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Green" Cursor="Hand"/>
-                <CheckBox x:Name="MA60" Content="MA60" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Foreground="Gray" Cursor="Hand"/>
+                <CheckBox x:Name="MA5" Content="MA5" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
+                <CheckBox x:Name="MA10" Content="MA10" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
+                <CheckBox x:Name="MA20" Content="MA20" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
+                <CheckBox x:Name="MA30" Content="MA30" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
+                <CheckBox x:Name="MA60" Content="MA60" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
             </StackPanel>
             <!-- 第三行：图表区域 -->
             <Grid Grid.Row="3" Margin="3">
