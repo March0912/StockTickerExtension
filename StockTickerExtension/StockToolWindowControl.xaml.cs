@@ -1,11 +1,7 @@
-﻿using Microsoft.VisualStudio.ArchitectureTools.Telemetry;
-using Microsoft.VisualStudio.OLE.Interop;
-using Microsoft.VisualStudio.PlatformUI;
+﻿using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json.Linq;
-using ScottPlot;
-using ScottPlot.Drawing.Colormaps;
 using ScottPlot.Plottable;
 using System;
 using System.Collections.Concurrent;
@@ -13,7 +9,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -23,7 +18,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
 
 namespace StockTickerExtension
 {
@@ -52,9 +46,9 @@ namespace StockTickerExtension
         private System.Windows.Point _lastMousePosition;
         private double _dragStartX = 0;
         private int _dragStartIndex = 0;
-		private bool _isDropdownOpened = false;
+        private bool _isEditingCodeText = false;
 
-		const string s_trendsURL = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
+        const string s_trendsURL = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
         const string s_klineURL = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
 
         public StockToolWindowControl(ToolWindowPane owner)
@@ -213,7 +207,6 @@ namespace StockTickerExtension
                 StopMonitoring();
                 StartMonitoring(text);
             }
-            _isDropdownOpened = false;
 		}
                 
 		private void AddBtn_Click(object sender, System.Windows.RoutedEventArgs e)
@@ -292,10 +285,11 @@ namespace StockTickerExtension
         private void InitCodeTextBox()
         {
             CodeTextBox.KeyUp += CodeTextBox_KeyUp;
-            CodeTextBox.DropDownOpened += (s, e) => { _isDropdownOpened = true; };
             CodeTextBox.DropDownClosed += CodeTextBox_DropDownClosed;
+            CodeTextBox.GotFocus += (s, e) => { _isEditingCodeText = true; };
+            CodeTextBox.LostFocus += (s, e) => { _isEditingCodeText = false; };
 
-			foreach (var code in _configManager.Config.WatchStockList)
+            foreach (var code in _configManager.Config.WatchStockList)
             {
                 CodeTextBox.Items.Add(code);
             }
@@ -304,7 +298,7 @@ namespace StockTickerExtension
 
         private void InitStockTypeComboBox()
         {
-            StockTypeComboBox.Items.Add("A-shares");
+            StockTypeComboBox.Items.Add("A stocks");
             StockTypeComboBox.Items.Add("HK stocks");
             StockTypeComboBox.Items.Add("US stocks");
 
@@ -431,8 +425,32 @@ namespace StockTickerExtension
                 }
                 else if (ctrl is CheckBox cb)
                 {
-                    cb.Foreground = fgBrush;
-                    if (bgColor0.Name.ToLower() == "ff1f1f1f")  //暗黑主题才调整
+                    bool isBlackTheme = bgColor0.Name.ToLower() == "ff1f1f1f";
+                    if (cb.Name == "MA5")
+                    {
+                        cb.Foreground = new SolidColorBrush(isBlackTheme ? Colors.White : Colors.Black);
+                    }
+                    else if (cb.Name == "MA10")
+                    {
+                        cb.Foreground = new SolidColorBrush(Colors.Orange);
+                    }
+                    else if (cb.Name == "MA20")
+                    {
+                        cb.Foreground = new SolidColorBrush(Colors.MediumVioletRed);
+                    }
+                    else if (cb.Name == "MA30")
+                    {
+                        cb.Foreground = new SolidColorBrush(Colors.Green);
+                    }
+                    else if (cb.Name == "MA60")
+                    {
+                        cb.Foreground = new SolidColorBrush(Colors.BlueViolet);
+                    }
+                    else
+                    {
+                        cb.Foreground = fgBrush;
+                    }
+                    if (isBlackTheme)  //暗黑主题才调整
                     {
                         cb.ApplyTemplate();
                         ApplyThemeToCheckBoxChildren(cb);
@@ -493,7 +511,7 @@ namespace StockTickerExtension
         {
             if (obj is Path ph)
             {
-                ph.Fill = new SolidColorBrush(Colors.LightBlue);
+                ph.Fill = new SolidColorBrush(Colors.Gray);
             }
             else
             {
@@ -722,14 +740,14 @@ namespace StockTickerExtension
             _ =Task.Run(() => MonitorLoopAsync(code, period, _cts.Token));
 
             // ✅ 如果是分时图，则同时启动金叉监控线程
-            if (period == PeriodType.Intraday)
-            {
-                _kdjCts = new CancellationTokenSource();
-                if (!_monitorOnce)
-                {
-                    _ = Task.Run(() => MonitorKDJAsync(code, _kdjCts.Token));
-                }
-            }
+//             if (period == PeriodType.Intraday)
+//             {
+//                 _kdjCts = new CancellationTokenSource();
+//                 if (!_monitorOnce)
+//                 {
+//                     _ = Task.Run(() => MonitorKDJAsync(code, _kdjCts.Token));
+//                 }
+//             }
 
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
             UpdateStatus("", System.Windows.Media.Brushes.LightBlue);
@@ -1146,7 +1164,7 @@ namespace StockTickerExtension
             {
                 _currentSnapshot = snap;
 
-                if (CodeTextBox.Text != (snap.Code + " " + snap.Name))
+                if (!_isEditingCodeText && CodeTextBox.Text != (snap.Code + " " + snap.Name))
                 {
                     CodeTextBox.Text = snap.Code + " " + snap.Name;
                 }
@@ -1166,10 +1184,10 @@ namespace StockTickerExtension
 
                 UpdateProfitDisplay();
 
-                if (GetCurrentPeriod() == PeriodType.DailyK || GetCurrentPeriod() == PeriodType.WeeklyK || GetCurrentPeriod() == PeriodType.MonthlyK)
-                {
-                    CheckKdjGoldenCross(snap);
-                }
+//                 if (GetCurrentPeriod() == PeriodType.DailyK || GetCurrentPeriod() == PeriodType.WeeklyK || GetCurrentPeriod() == PeriodType.MonthlyK)
+//                 {
+//                     CheckKdjGoldenCross(snap);
+//                 }
                 if(_monitorOnce)
                 {
                     StopBtn_Click(null, null);
@@ -1440,8 +1458,12 @@ namespace StockTickerExtension
 				}
 				var xv = xList.ToArray(); 
                 var yv = yList.ToArray();
-				if (yv.Length > 1) 
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Black, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
+                if (yv.Length > 1)
+                {
+                    var brush = MA5.Foreground as SolidColorBrush;
+                    var ma5Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma5Color, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
+                }
 			}
 
             var ma10 = snap.MA10 ?? Tool.ComputeSimpleMovingAverage(closes, 10);
@@ -1479,8 +1501,12 @@ namespace StockTickerExtension
 				}
 				var xv = xList.ToArray(); 
                 var yv = yList.ToArray();
-				if (yv.Length > 1)
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Orange, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
+                if (yv.Length > 1)
+                {
+                    var brush = MA10.Foreground as SolidColorBrush;
+                    var ma10Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma10Color, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
+                }
 			}
 
             var ma20 = snap.MA20 ?? Tool.ComputeSimpleMovingAverage(closes, 20);
@@ -1518,8 +1544,12 @@ namespace StockTickerExtension
 				}
 				var xv = xList.ToArray(); 
                 var yv = yList.ToArray();
-				if (yv.Length > 1) 
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.MediumVioletRed, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
+                if (yv.Length > 1)
+                {
+                    var brush = MA20.Foreground as SolidColorBrush;
+                    var ma20Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma20Color, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
+                }
 			}
 
             var ma30 = snap.MA30 ?? Tool.ComputeSimpleMovingAverage(closes, 30);
@@ -1558,7 +1588,11 @@ namespace StockTickerExtension
                 var xv = xList.ToArray(); 
                 var yv = yList.ToArray();
                 if (yv.Length > 1)
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Green, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
+                {
+                    var brush = MA30.Foreground as SolidColorBrush;
+                    var ma30Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, ma30Color, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
+                }
             }
 
             var ma60 = snap.MA60 ?? Tool.ComputeSimpleMovingAverage(closes, 60);
@@ -1597,7 +1631,11 @@ namespace StockTickerExtension
                 var xv = xList.ToArray(); 
                 var yv = yList.ToArray();
                 if (yv.Length > 1)
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: System.Drawing.Color.Gray, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
+                {
+                    var brush = MA60.Foreground as SolidColorBrush;
+                    var ma60Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma60Color, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
+                }
             }
 
             // Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值
@@ -2139,13 +2177,13 @@ namespace StockTickerExtension
                 if (isGolden)
                 {
                     string str = $"*************** {snap.Code} {snap.Name} {t} KDJ Golden Cross signal！***************";
-                    UpdateStatus(str, System.Windows.Media.Brushes.Green);
+                    UpdateStatus(str, System.Windows.Media.Brushes.Red);
                     UpdateVSStatus(str);
                 }
                 else if (isDeath)
                 {
                     string str = $"*************** {snap.Code} {snap.Name} {t} KDJ Death Cross signal！***************";
-                    UpdateStatus(str, System.Windows.Media.Brushes.Red);
+                    UpdateStatus(str, System.Windows.Media.Brushes.Green);
                     UpdateVSStatus(str);
                 }
             }
