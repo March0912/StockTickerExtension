@@ -69,13 +69,19 @@
             </StackPanel>
 
             <!-- 第二行：持仓信息 -->
-            <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="1" HorizontalAlignment="Left">
-                <TextBlock x:Name="CurrentPrice1Label" Text="Current Price:" VerticalAlignment="Center" Margin="6,0" FontWeight="Bold" />
-                <TextBox x:Name="CurrentPriceText" Width="60" Text="" IsReadOnly="True" BorderBrush="Blue" />
+            <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="1" HorizontalAlignment="Left">                
                 <TextBlock x:Name="NumberSharesBox" Text="Number of Shares:" VerticalAlignment="Center" Margin="6,0" />
                 <TextBox x:Name="SharesBox" Width="80" Text="" />
                 <TextBlock Text="Cost Price:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBox x:Name="CostBox" Width="60" Text=""/>
+                <TextBlock x:Name="CurrentPriceLabel" Text="Current:" VerticalAlignment="Center" Margin="6,0" FontWeight="Bold" />
+                <TextBlock x:Name="CurrentPriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="OpenPriceLabel" Text="Open:" VerticalAlignment="Center" Margin="6,0" />
+                <TextBlock x:Name="OpenPriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="HighestPriceLabel" Text="High:" VerticalAlignment="Center" Margin="6,0" />
+                <TextBlock x:Name="HighestPriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="LowestPriceLabel" Text="Low:" VerticalAlignment="Center" Margin="6,0" />
+                <TextBlock x:Name="LowestPriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="Fluctuation" Text="Fluctuation:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center" />
                 <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="6,0"/>
