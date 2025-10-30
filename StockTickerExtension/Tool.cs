@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace StockTickerExtension
 {
@@ -201,7 +199,7 @@ namespace StockTickerExtension
         /// <summary>
         /// 涨跌幅
         /// </summary>
-        public double? ChangePercent { get; set; }
+        public double[] ChangePercents { get; set; }
 
 		// 预计算的均线（若可用，则用于绘图，确保从 x=0 开始）
 		public double[] MA5 { get; set; }
