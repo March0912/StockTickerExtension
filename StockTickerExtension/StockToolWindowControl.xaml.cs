@@ -980,7 +980,6 @@ namespace StockTickerExtension
             {
                 changePercents[i] = (prices[i] - prices[i-1]) / prices[i-1] * 100;
             }
-			double changePercent = (count >= 2) ? (lastPrice - prices[count - 2]) / prices[count - 2] * 100 : 0;
 
 			// 计算严格窗口的全序列均线
 			double[] ma5full = Tool.ComputeExactWindowSMA(prices, 5);
