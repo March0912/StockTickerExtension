@@ -17,6 +17,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace StockTickerExtension
 {
@@ -36,7 +37,7 @@ namespace StockTickerExtension
         private DateTime _currentDate;
         private CancellationTokenSource _kdjCts;
         private StockMarket _stockType = StockMarket.StockA;
-        StockSnapshot _currentSnapshot;
+        private StockSnapshot _currentSnapshot;
         private Crosshair _crosshair;
         private FuzzySearchDialog _fuzzySearchDialog;
         private bool _isBlackTheme = false;
@@ -64,6 +65,11 @@ namespace StockTickerExtension
         public bool IsAutoStopWhenClosed()
         {
             return AutoStopCheckBox.IsChecked == true;
+        }
+
+        public bool IsMonitoring()
+        {
+            return _monitoring;
         }
 
         private void StartBtn_Click(object sender, System.Windows.RoutedEventArgs e) => StartMonitoring();
@@ -132,13 +138,13 @@ namespace StockTickerExtension
         private void StockTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             _stockType = (StockMarket)StockTypeComboBox.SelectedIndex;
-            _tradingMinutes = BuildTradingMinutes(_currentDate);
+            _tradingMinutes = Tool.BuildTradingMinutes(_stockType, _currentDate);
         }
 
         private void Date_SelecteionChanged(object sender, SelectionChangedEventArgs e)
         {
             _currentDate = GetCurrentDate();
-            _tradingMinutes = BuildTradingMinutes(_currentDate);
+            _tradingMinutes = Tool.BuildTradingMinutes(_stockType, _currentDate);
         }
 
         private void ScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -167,18 +173,19 @@ namespace StockTickerExtension
                     if (isOnlyDigit)
                     {
                         StopMonitoring();
+                        _stockType = StockMarket.StockA;
                         StartMonitoring();
                     }
                     else
                     {
-                        var idx = GetCodeTextBoxIndex(text);
-                        if (idx >= 0)
-                        {
-                            CodeTextBox.SelectedIndex = idx;
-                            StopMonitoring();
-                            StartMonitoring();
-                            return;
-                        }
+//                         var idx = GetCodeTextBoxIndex(text);
+//                         if (idx >= 0)
+//                         {
+//                             CodeTextBox.SelectedIndex = idx;
+//                             StopMonitoring();
+//                             StartMonitoring();
+//                             return;
+//                         }
 
                         List<StockInfo> results = await SearchStocks_Async(text);
                         if (results.Count > 0)
@@ -205,7 +212,18 @@ namespace StockTickerExtension
 			var text = comboBox.SelectedItem?.ToString();
             if (!string.IsNullOrEmpty(text))
             {
-                StopMonitoring();
+                if(text.EndsWith(StockMarket.StockHK.ToString()))
+                {
+                    _stockType = StockMarket.StockHK;
+                }
+                else if(text.EndsWith(StockMarket.StockUS.ToString()))
+                {
+                    _stockType = StockMarket.StockUS;
+                }
+                else
+                {
+                    _stockType = StockMarket.StockA;
+                }
                 StartMonitoring(text);
             }
 		}
@@ -215,7 +233,6 @@ namespace StockTickerExtension
             var text = CodeTextBox.Text?.Trim();
             if (!string.IsNullOrEmpty(text))
             {
-                // 自动把输入的代码加入历史记录
                 if (!CodeTextBox.Items.Contains(text))
                 {
                     CodeTextBox.Items.Add(text);
@@ -235,6 +252,7 @@ namespace StockTickerExtension
         private void Init()
         {
             _configManager.Load();
+            _stockType = _configManager.Config.CurrentStockType;
 
             SharesBox.Text = _configManager.Config.CurrentShares.ToString();
             CostBox.Text = _configManager.Config.CurrentCostPrices.ToString();
@@ -248,7 +266,7 @@ namespace StockTickerExtension
             AddBtn.Click += AddBtn_Click;
             RemoveBtn.Click += RemoveBtn_Click;
             StartBtn.Click += StartBtn_Click;
-            StartBtn.Content = !IsTradingTime(DateTime.Now) ? "Get" : "Start";
+            StartBtn.Content = !Tool.IsTradingTime(_stockType, DateTime.Now) ? "Get" : "Start";
             StopBtn.Click += StopBtn_Click;
             StopBtn.IsEnabled = false;
 
@@ -258,7 +276,6 @@ namespace StockTickerExtension
             MA30.IsEnabled = false;
             MA60.IsEnabled = false;
 
-            // 当 UserControl 卸载（窗口关闭）时停止监控
             this.Unloaded += OnUnloaded;
             DatePickerControl.SelectedDateChanged += Date_SelecteionChanged;
 
@@ -270,7 +287,7 @@ namespace StockTickerExtension
             InitPeriodComboBox();
 
             _currentDate = GetCurrentDate();
-            _tradingMinutes = BuildTradingMinutes(_currentDate);
+            _tradingMinutes = Tool.BuildTradingMinutes(_stockType, _currentDate);
 
             InitPriceChat();
             InitUIColor();
@@ -295,6 +312,18 @@ namespace StockTickerExtension
                 CodeTextBox.Items.Add(code);
             }
             CodeTextBox.Text = _configManager.Config.CurrentStock;
+            if (CodeTextBox.Text.EndsWith(StockMarket.StockHK.ToString()))
+            {
+                _stockType = StockMarket.StockHK;
+            }
+            else if (CodeTextBox.Text.EndsWith(StockMarket.StockUS.ToString()))
+            {
+                _stockType = StockMarket.StockUS;
+            }
+            else
+            {
+                _stockType = StockMarket.StockA;
+            }
         }
 
         private void InitStockTypeComboBox()
@@ -302,10 +331,7 @@ namespace StockTickerExtension
             StockTypeComboBox.Items.Add("A stocks");
             StockTypeComboBox.Items.Add("HK stocks");
             StockTypeComboBox.Items.Add("US stocks");
-
             StockTypeComboBox.SelectedIndex = (int)_configManager.Config.CurrentStockType;
-            _stockType = _configManager.Config.CurrentStockType;
-
             StockTypeComboBox.SelectionChanged += StockTypeComboBox_SelectionChanged;
         }
 
@@ -403,7 +429,6 @@ namespace StockTickerExtension
 
             _isBlackTheme = bgColor0.Name.ToLower() == "ff1f1f1f";
 
-            // 设置当前控件
             if (obj is Control ctrl)
             {
                 if (ctrl.Name != "StartBtn" && ctrl.Name != "StopBtn")
@@ -477,7 +502,6 @@ namespace StockTickerExtension
                 }
             }
 
-            // 递归对子控件应用
             int count = VisualTreeHelper.GetChildrenCount(obj);
             for (int i = 0; i < count; i++)
             {
@@ -537,7 +561,7 @@ namespace StockTickerExtension
 //             {
 //                 sp.Fill = bgBrush;
 //             }
-            else
+//             else
             {
                 int count = VisualTreeHelper.GetChildrenCount(obj);
                 for (int i = 0; i < count; i++)
@@ -546,69 +570,6 @@ namespace StockTickerExtension
                     ApplyThemeToDatePickerChildren(child, fgBrush, bgBrush);
                 }
             }
-        }
-
-        private List<string> BuildTradingMinutes(DateTime date)
-        {
-            var list = new List<string>();
-
-            if (_stockType == StockMarket.StockA)
-            {
-                var t = date.AddHours(9).AddMinutes(30);
-                var end = date.AddHours(11).AddMinutes(30);
-                while (t <= end) 
-                { 
-                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
-                    t = t.AddMinutes(1); 
-                }
-
-                t = date.AddHours(13);
-                end = date.AddHours(15);
-                while (t <= end) 
-                {
-                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
-                    t = t.AddMinutes(1);
-                }
-            }
-            else if( _stockType == StockMarket.StockHK)
-            {
-                var t = date.AddHours(9).AddMinutes(30);
-                var end = date.AddHours(12).AddMinutes(00);
-                while (t <= end)
-                {
-                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
-                    t = t.AddMinutes(1);
-                }
-
-                t = date.AddHours(13);
-                end = date.AddHours(16);
-                while (t <= end)
-                {
-                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
-                    t = t.AddMinutes(1);
-                }
-            }
-            else// if (_stockType == StockType.StockUS)
-            {
-                // 判断是否夏令时（美东时间）
-                var easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-                bool isDst = easternZone.IsDaylightSavingTime(DateTime.UtcNow);
-
-                // 夏令时：21:30 - 次日04:00
-                // 冬令时：22:30 - 次日05:00
-                DateTime start = isDst ? date.AddHours(21).AddMinutes(30) : date.AddHours(22).AddMinutes(30);
-                start = start.AddDays(-1);
-                DateTime end = isDst ? date.AddDays(1).AddHours(4) : date.AddDays(1).AddHours(5);
-                end = end.AddDays(-1);
-
-                var t = start;
-                while (t <= end)
-                {
-                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
-                    t = t.AddMinutes(1);
-                }
-            }
-            return list;
         }
 
         private void UpdateVSStatus(string code, double price, double changePercent, double positionProfit, double todayProfit)
@@ -637,54 +598,6 @@ namespace StockTickerExtension
             });
         }
 
-        private bool IsWeekend(DateTime dt) => dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday;
-
-		private bool IsTradingTime(DateTime dt)
-        {
-            if (IsWeekend(dt))
-                return false;
-
-            if (_stockType == StockMarket.StockA)
-            {
-                TimeSpan morningStart = new TimeSpan(9, 30, 0);
-                TimeSpan morningEnd = new TimeSpan(11, 30, 0);
-                TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
-                TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
-
-                TimeSpan nowTime = dt.TimeOfDay;
-                return (nowTime >= morningStart && nowTime <= morningEnd) ||
-                       (nowTime >= afternoonStart && nowTime <= afternoonEnd);
-            }
-            else if (_stockType == StockMarket.StockHK)
-            {
-                TimeSpan morningStart = new TimeSpan(9, 30, 0);
-                TimeSpan morningEnd = new TimeSpan(12, 00, 0);
-                TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
-                TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
-
-                TimeSpan nowTime = dt.TimeOfDay;
-                return (nowTime >= morningStart && nowTime <= morningEnd) ||
-                       (nowTime >= afternoonStart && nowTime <= afternoonEnd);
-            }
-            else// if (_stockType == StockType.StockUS)
-            {
-                // 判断是否夏令时（美东时间）
-                var easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-                bool isDst = easternZone.IsDaylightSavingTime(DateTime.UtcNow);
-
-                DateTime today = DateTime.Today;
-                // 夏令时：21:30 - 次日04:00
-                // 冬令时：22:30 - 次日05:00
-                DateTime start = isDst ? today.AddHours(21).AddMinutes(30) : today.AddHours(22).AddMinutes(30);
-                start = start.AddDays(-1);
-                DateTime end = isDst ? today.AddDays(1).AddHours(4) : today.AddDays(1).AddHours(5);
-                end = end.AddDays(-1);
-
-                TimeSpan nowTime = dt.TimeOfDay;
-                return (nowTime >= start.TimeOfDay && nowTime <= end.TimeOfDay);
-            }
-        }
-
 		private bool CheckTradingTime()
         {
             var codeName = CodeTextBox.Text?.Trim();
@@ -695,7 +608,7 @@ namespace StockTickerExtension
             }
 
             // ------------------ 检查交易时间 ------------------
-            if (!IsTradingTime(DateTime.Now))
+            if (!Tool.IsTradingTime(_stockType, DateTime.Now))
             {
                 // 收盘后（15:00之后）允许启动，并显示当日完整分时数据
                 UpdateStatus("Currently outside trading hours", System.Windows.Media.Brushes.Red); 
@@ -791,33 +704,6 @@ namespace StockTickerExtension
             Logger.Info("Monitoring stoped!");
         }
 
-        private string PeriodToKType(PeriodType period)
-        {
-            string kType;
-            switch (period)
-            {
-                case PeriodType.DailyK:
-                    kType = "101";
-                    break;
-                case PeriodType.WeeklyK:
-                    kType = "102";
-                    break;
-                case PeriodType.MonthlyK:
-                    kType = "103";
-                    break;
-                case PeriodType.QuarterlyK:
-                    kType = "104";
-                    break;
-                case PeriodType.YearlyK:
-                    kType = "105";
-                    break;
-                default:
-                    kType = "101";
-                    break;
-            }
-            return kType;
-        }
-
         private async Task MonitorLoopAsync(string code, PeriodType period, CancellationToken token)
         {
             if (!_monitoring)
@@ -866,10 +752,10 @@ namespace StockTickerExtension
             if(period == PeriodType.Intraday)
                return await FetchTrendsSnapshot_Async(code);
 
-            var secid = GetSecId(code);
+            var secid = Tool.GetSecId(_stockType, code);
             if (secid == null) return null;
 
-            var kType = PeriodToKType(period);
+            var kType = Tool.PeriodToKType(period);
 
             int dayCount = 150;
             string begStr;
@@ -1013,7 +899,7 @@ namespace StockTickerExtension
 
         private async Task<StockSnapshot> FetchTrendsSnapshot_Async(string code)
         {
-            var secid = GetSecId(code);
+            var secid = Tool.GetSecId(_stockType, code);
             if (secid == null) return null;
 
             var dateStr = _currentDate.ToString("yyyyMMdd");
@@ -1127,41 +1013,6 @@ namespace StockTickerExtension
             }
         }
 
-        private string GetSecId(string code)
-        {
-            string secId = code;
-            switch (_stockType)
-            {
-                case StockMarket.StockA:
-                    {
-                        char first = code[0];
-                        if (first == '0' || first == '2' || first == '3')
-                        {
-                            secId = "0." + code;
-                        }
-                        else if (first == '6' || first == '9')
-                        {
-                            secId = "1." + code;
-                        }
-                        break;
-                    }
-                case StockMarket.StockHK:
-                    {
-                        secId = "116." + code;
-                        break;
-                    }
-                case StockMarket.StockUS:
-                    {
-                        secId = "105." + code;
-                        break;
-                    }
-                default:
-                    secId = "0." + code;
-                    break;
-            }
-            return secId;
-        }
-
         private void UiTimer_Tick(object sender, EventArgs e)
         {
             if (!_monitoring)
@@ -1171,7 +1022,7 @@ namespace StockTickerExtension
             {
                 _currentSnapshot = snap;
 
-                if (!_isEditingCodeText && CodeTextBox.Text != (snap.Code + " " + snap.Name))
+                if (!_isEditingCodeText && !CodeTextBox.Text.StartsWith(snap.Code + " " + snap.Name))
                 {
                     CodeTextBox.Text = snap.Code + " " + snap.Name;
                 }
@@ -1198,7 +1049,7 @@ namespace StockTickerExtension
                 }
                 else
                 {
-                    if(!IsTradingTime(DateTime.Now))
+                    if(!Tool.IsTradingTime(_stockType, DateTime.Now))
                     {
                         StopBtn_Click(null, null);
                     }
@@ -1416,7 +1267,7 @@ namespace StockTickerExtension
             WpfPlotPrice.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
 
             // 设置 X 轴刻度 - 使用时间轴标签
-            var (ticks, labels) = GenerateTimeAxisLabels(GetCurrentPeriod(), snap.KLineDates);
+            var (ticks, labels) = Tool.GenerateTimeAxisLabels(GetCurrentPeriod(), snap.KLineDates, GetCurrentDate());
             if (ticks.Count > 0)
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
@@ -1846,9 +1697,12 @@ namespace StockTickerExtension
             if(GetCurrentPeriod() == PeriodType.Intraday)
             {
                 var prices = snap.Prices.Where(p => !double.IsNaN(p)).ToArray();
-                OpenPriceText.Text = snap.Prices.First().ToString("F2");
-                HighestPriceText.Text = prices.Max().ToString("F2");
-                LowestPriceText.Text = prices.Min().ToString("F2");
+                if (prices != null && prices.Length > 0)
+                {
+                    OpenPriceText.Text = prices.First().ToString("F2");
+                    HighestPriceText.Text = prices.Max().ToString("F2");
+                    LowestPriceText.Text = prices.Min().ToString("F2");
+                }
             }
             else
             {
@@ -1859,6 +1713,7 @@ namespace StockTickerExtension
             ChangePercentText.Text = val != 0 ? $"{val:F2}%" : "--%";
             ChangePercentText.Foreground = foreground;
         }
+
         private void UpdateStatus(string text, System.Windows.Media.Brush color = null)
         {
             Dispatcher.BeginInvoke(new Action(() =>
@@ -1881,126 +1736,6 @@ namespace StockTickerExtension
         private PeriodType GetCurrentPeriod()
         {
             return (PeriodType)PeriodComboBox.SelectedIndex;
-        }
-
-        private (List<double> ticks, List<string> labels) GenerateTimeAxisLabels(PeriodType period, DateTime[] dates)
-        {
-            var dateCount = dates.Length;
-            var ticks = new List<double>();
-            var labels = new List<string>();
-
-            // 根据数据点数量确定标签密度
-            int labelInterval = Math.Max(dateCount, 10);
-            if (dateCount <= 10)
-            {
-                labelInterval = 1;
-            }
-            else// if (dateCount > 10)
-            {
-                labelInterval = Math.Max(1, dateCount / 10); // 最多显示10个标签
-            }
-            
-            // 根据不同的K线周期生成时间标签
-            switch (period)
-            {
-                case PeriodType.DailyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
-                    {
-                        // 从当前日期往前推算
-                        DateTime date = new DateTime();
-                        if (dates != null && dates.Length > 0)
-                        {
-                            date = dates[i];
-                        }
-                        else
-                        {
-                            _currentDate.AddDays(-(dateCount - 1 - i));
-                        }
-                        ticks.Add(i);
-                        labels.Add(date.ToString("MM/dd"));
-                    }
-                    break;                    
-                case PeriodType.WeeklyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
-                    {
-                        DateTime date = new DateTime();
-                        if (dates != null && dates.Length > 0)
-                        {
-                            date = dates[i];
-                        }
-                        else
-                        {
-                            date = _currentDate.AddDays(-(dateCount - 1 - i) * 7);
-                        }
-                        ticks.Add(i);
-                        labels.Add(date.ToString("MM/dd"));
-                    }
-                    break;                    
-                case PeriodType.MonthlyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
-                    {
-                        DateTime date = new DateTime();
-                        if (dates != null && dates.Length > 0)
-                        {
-                            date = dates[i];
-                        }
-                        else
-                        {
-                            date = _currentDate.AddMonths(-(dateCount - 1 - i));
-                        }
-                        ticks.Add(i);
-                        labels.Add(date.ToString("yyyy/MM"));
-                    }
-                    break;                    
-                case PeriodType.QuarterlyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
-                    {
-                        DateTime date = new DateTime();
-                        if (dates != null && dates.Length > 0)
-                        {
-                            date = dates[i];
-                        }
-                        else
-                        {
-                            date = _currentDate.AddMonths(-(dateCount - 1 - i) * 3);
-                        }
-                        ticks.Add(i);
-                        labels.Add($"{date.Year}/Q{((date.Month - 1) / 3) + 1}");
-                    }
-                    break;                    
-                case PeriodType.YearlyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
-                    {
-                        DateTime date = new DateTime();
-                        if (dates != null && dates.Length > 0)
-                        {
-                            date = dates[i];
-                        }
-                        else
-                        {
-                            date = _currentDate.AddYears(-(dateCount - 1 - i));
-                        }
-                        var dStr = date.ToString("yyyy/MM");
-                        if (!labels.Contains(dStr))
-                        {
-                            ticks.Add(i);
-                            labels.Add(dStr);
-                        }
-                    }
-                    break;                    
-                default:
-                    // 默认显示索引
-                    for (int i = 0; i < dateCount; i += labelInterval)
-                    {
-                        ticks.Add(i);
-                        labels.Add(i.ToString());
-                    }
-                    break;
-            }
-
-            ticks.Reverse();
-            labels.Reverse();
-            return (ticks, labels);
         }
 
         private void OnKLineMouseWheel(object sender, MouseWheelEventArgs e)
@@ -2215,9 +1950,12 @@ namespace StockTickerExtension
                 if (GetCurrentPeriod() == PeriodType.Intraday)
                 {
                     var prices = _currentSnapshot.Prices.Where(p => !double.IsNaN(p)).ToArray();
-                    OpenPriceText.Text = _currentSnapshot.Prices.First().ToString();
-                    HighestPriceText.Text = prices.Max().ToString();
-                    LowestPriceText.Text = prices.Min().ToString();
+                    if (prices != null && prices.Length > 0)
+                    {
+                        OpenPriceText.Text = prices.First().ToString();
+                        HighestPriceText.Text = prices.Max().ToString();
+                        LowestPriceText.Text = prices.Min().ToString();
+                    }
 
                     var val = _currentSnapshot.ChangePercents != null ? _currentSnapshot.ChangePercents.Last() : 0;
                     ChangePercentText.Text = $"{val:F2}%"; //$"{val: F2}%";
@@ -2315,44 +2053,6 @@ namespace StockTickerExtension
             _configManager.Save();
         }
 
-        private System.Windows.Media.Color ColorFromHex(string hex, double opacity = 1.0)
-        {
-            // hex like "#RRGGBB" or "#AARRGGBB"
-            try
-            {
-                var c = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex);
-                c.A = (byte)(opacity * 255);
-                return c;
-            }
-            catch
-            {
-                return Colors.Transparent;
-            }
-        }
-
-        private StockMarket ToStockMarket(string code)
-        {
-            StockMarket sm = StockMarket.StockA;
-            switch (code.ToLower())
-            {
-                case "neeq":       //科创板、北交所、新三板等
-				case "23":  //科创板
-                case "astock":
-                    sm = StockMarket.StockA;
-                    break;
-                case "hk":
-                    sm = StockMarket.StockHK;
-                    break;
-                case "usstock":
-                    sm = StockMarket.StockUS;
-                    break;
-                default:
-                    sm = StockMarket.StockA;
-                    break;
-            }
-            return sm;
-        }
-
         private async Task<List<StockInfo>> SearchStocks_Async(string keyword)
         {
             var list = new List<StockInfo>();
@@ -2380,16 +2080,13 @@ namespace StockTickerExtension
                         {
                             continue;
                         }
-                        var type = ToStockMarket(classify);
-                        if(type == _stockType)
-                        {
-							list.Add(new StockInfo
-							{
-								Code = item["Code"]?.ToString(),
-								Name = item["Name"]?.ToString(),
-								StockType = ToStockMarket(classify)
-							});
-						}						
+                        var type = Tool.ToStockMarket(classify);
+						list.Add(new StockInfo
+						{
+							Code = item["Code"]?.ToString(),
+							Name = item["Name"]?.ToString(),
+							StockType = type
+                        });
                     }
                 }
             }
@@ -2408,6 +2105,11 @@ namespace StockTickerExtension
 			_fuzzySearchDialog.StockSelected += info => 
             {
 				CodeTextBox.Text = info.Code + " " + info.Name;
+                if(info.StockType == StockMarket.StockHK || info.StockType == StockMarket.StockUS)
+                {
+                    CodeTextBox.Text += " " + info.StockType.ToString();
+                }
+                StockTypeComboBox.SelectedIndex = (int)info.StockType;
 				StopMonitoring();
 				StartMonitoring();
 			};
