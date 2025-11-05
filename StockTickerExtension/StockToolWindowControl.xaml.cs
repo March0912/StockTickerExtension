@@ -135,9 +135,9 @@ namespace StockTickerExtension
             StartBtn_Click(null, null);
         }
 
-        private void StockTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void UpdateStockType(StockMarket type)
         {
-            _stockType = (StockMarket)StockTypeComboBox.SelectedIndex;
+            _stockType = type;
             _tradingMinutes = Tool.BuildTradingMinutes(_stockType, _currentDate);
         }
 
@@ -172,20 +172,32 @@ namespace StockTickerExtension
                     bool isOnlyDigit = text.All(char.IsDigit);
                     if (isOnlyDigit)
                     {
-                        StopMonitoring();
-                        _stockType = StockMarket.StockA;
+                        UpdateStockType(StockMarket.StockA);
                         StartMonitoring();
                     }
                     else
                     {
-//                         var idx = GetCodeTextBoxIndex(text);
-//                         if (idx >= 0)
-//                         {
-//                             CodeTextBox.SelectedIndex = idx;
-//                             StopMonitoring();
-//                             StartMonitoring();
-//                             return;
-//                         }
+                        var idx = GetCodeTextBoxIndex(text);
+                        if (idx >= 0)
+                        {
+                            CodeTextBox.SelectedIndex = idx;
+                            StockMarket sm = StockMarket.StockA;
+                            if(CodeTextBox.Text.EndsWith(StockMarket.StockHK.ToString()))
+                            {
+                                sm = StockMarket.StockHK;
+                            }
+                            else if (CodeTextBox.Text.EndsWith(StockMarket.StockUS.ToString()))
+                            {
+                                sm = StockMarket.StockUS;
+                            }
+                            else
+                            {
+                                sm = StockMarket.StockA;
+                            }
+                            UpdateStockType(sm);
+                            StartMonitoring();
+                            return;
+                        }
 
                         List<StockInfo> results = await SearchStocks_Async(text);
                         if (results.Count > 0)
@@ -212,18 +224,20 @@ namespace StockTickerExtension
 			var text = comboBox.SelectedItem?.ToString();
             if (!string.IsNullOrEmpty(text))
             {
+                StockMarket sm = StockMarket.StockA;
                 if(text.EndsWith(StockMarket.StockHK.ToString()))
                 {
-                    _stockType = StockMarket.StockHK;
+                    sm = StockMarket.StockHK;
                 }
                 else if(text.EndsWith(StockMarket.StockUS.ToString()))
                 {
-                    _stockType = StockMarket.StockUS;
+                    sm = StockMarket.StockUS;
                 }
                 else
                 {
-                    _stockType = StockMarket.StockA;
+                    sm = StockMarket.StockA;
                 }
+                UpdateStockType(sm);
                 StartMonitoring(text);
             }
 		}
@@ -252,7 +266,6 @@ namespace StockTickerExtension
         private void Init()
         {
             _configManager.Load();
-            _stockType = _configManager.Config.CurrentStockType;
 
             SharesBox.Text = _configManager.Config.CurrentShares.ToString();
             CostBox.Text = _configManager.Config.CurrentCostPrices.ToString();
@@ -282,12 +295,12 @@ namespace StockTickerExtension
             CurrentPriceText.FontWeight = FontWeights.Bold;
             CurrentPriceText.Foreground = System.Windows.Media.Brushes.Green;
 
-            InitCodeTextBox();
-            InitStockTypeComboBox();
-            InitPeriodComboBox();
-
             _currentDate = GetCurrentDate();
             _tradingMinutes = Tool.BuildTradingMinutes(_stockType, _currentDate);
+
+            InitCodeTextBox();
+//             InitStockTypeComboBox();
+            InitPeriodComboBox();
 
             InitPriceChat();
             InitUIColor();
@@ -297,11 +310,13 @@ namespace StockTickerExtension
                 UpdateStatus("Please enter or choose a stock code.", System.Windows.Media.Brushes.Red);
             }
 
-            _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
+            _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(0.1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
         }
 
         private void InitCodeTextBox()
         {
+            _currentDate = GetCurrentDate();
+
             CodeTextBox.KeyUp += CodeTextBox_KeyUp;
             CodeTextBox.DropDownClosed += CodeTextBox_DropDownClosed;
             CodeTextBox.GotFocus += (s, e) => { _isEditingCodeText = true; };
@@ -312,27 +327,20 @@ namespace StockTickerExtension
                 CodeTextBox.Items.Add(code);
             }
             CodeTextBox.Text = _configManager.Config.CurrentStock;
+            StockMarket sm = StockMarket.StockA;
             if (CodeTextBox.Text.EndsWith(StockMarket.StockHK.ToString()))
             {
-                _stockType = StockMarket.StockHK;
+                sm = StockMarket.StockHK;
             }
             else if (CodeTextBox.Text.EndsWith(StockMarket.StockUS.ToString()))
             {
-                _stockType = StockMarket.StockUS;
+                sm = StockMarket.StockUS;
             }
             else
             {
-                _stockType = StockMarket.StockA;
+                sm = StockMarket.StockA;
             }
-        }
-
-        private void InitStockTypeComboBox()
-        {
-            StockTypeComboBox.Items.Add("A stocks");
-            StockTypeComboBox.Items.Add("HK stocks");
-            StockTypeComboBox.Items.Add("US stocks");
-            StockTypeComboBox.SelectedIndex = (int)_configManager.Config.CurrentStockType;
-            StockTypeComboBox.SelectionChanged += StockTypeComboBox_SelectionChanged;
+            UpdateStockType(sm);
         }
 
         private void InitPeriodComboBox()
@@ -938,7 +946,7 @@ namespace StockTickerExtension
                     if (parts.Length < 8) continue;
                     var time = parts[0];
                     if (!double.TryParse(parts[2], out double price)) price = double.NaN;
-                    if (!double.TryParse(parts[5], out double vol)) vol = 0;
+                    if (!double.TryParse(parts[5], out double vol)) vol = double.NaN;
                     if (!double.TryParse(parts[7], out double avg)) avg = double.NaN;
                     parsedRows.Add((time, price, vol, avg));
                 }
@@ -949,6 +957,9 @@ namespace StockTickerExtension
                     int idx = _tradingMinutes.IndexOf(r.time);
                     if (idx < 0 || idx >= _tradingMinutes.Count)
                         continue;
+                    if (r.price == 0 || r.avg == 0 || r.vol == 0)
+                        continue;
+
                     prices[idx] = r.price;
                     avgPrices[idx] = r.avg;
                     vols[idx] = r.vol;
@@ -1022,9 +1033,12 @@ namespace StockTickerExtension
             {
                 _currentSnapshot = snap;
 
-                if (!_isEditingCodeText && !CodeTextBox.Text.StartsWith(snap.Code + " " + snap.Name))
+                if (!CodeTextBox.Text.StartsWith(snap.Code + " " + snap.Name))
                 {
-                    CodeTextBox.Text = snap.Code + " " + snap.Name;
+                    if (!_isEditingCodeText || _monitorOnce)
+                    {
+                        CodeTextBox.Text = snap.Code + " " + snap.Name;
+                    }
                 }
 
                 if (string.IsNullOrEmpty(StatusText.Text))
@@ -1205,12 +1219,12 @@ namespace StockTickerExtension
 
             // 上下各留出10%的空间（总共扩大20%）
             double priceRange = maxPrice - minPrice;
-            WpfPlotPrice.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1, yAxisIndex: 0);
+            WpfPlotPrice.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1 + 0.01, yAxisIndex: 0);
 
             // 调整右侧成交量轴范围
             double maxVolume = Math.Max(fullBuyVolumes.DefaultIfEmpty(0).Max(),
                                         fullSellVolumes.DefaultIfEmpty(0).Max());
-            WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3, yAxisIndex: 1); // 上限提高20%
+            WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3 + 0.01, yAxisIndex: 1); // 上限提高20%
 
             if (crosshair != null)
             {
@@ -2027,7 +2041,6 @@ namespace StockTickerExtension
 
         public void SaveConfig()
         {
-            _configManager.Config.CurrentStockType = (StockMarket)StockTypeComboBox.SelectedIndex;
             _configManager.Config.CurrentStock = CodeTextBox.Text.Trim();
             _configManager.Config.AutoStopOnClose = AutoStopCheckBox.IsChecked == true;
             
@@ -2109,9 +2122,8 @@ namespace StockTickerExtension
                 {
                     CodeTextBox.Text += " " + info.StockType.ToString();
                 }
-                StockTypeComboBox.SelectedIndex = (int)info.StockType;
-				StopMonitoring();
-				StartMonitoring();
+                UpdateStockType(info.StockType);
+                StartMonitoring();
 			};
 
 			var transform = CodeTextBox.TransformToAncestor(this);

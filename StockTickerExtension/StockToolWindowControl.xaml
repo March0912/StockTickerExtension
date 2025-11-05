@@ -53,7 +53,6 @@
 
             <!-- 顶部控制面板 -->
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="0" HorizontalAlignment="Left">
-                <ComboBox x:Name="StockTypeComboBox" Width="80" SelectedIndex="0" Margin="6,0"/>
                 <TextBlock x:Name="StockCode" Text="Watch list:" VerticalAlignment="Center" Margin="6,0"/>
                 <ComboBox x:Name="CodeTextBox" Width="180" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
                 <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80" Cursor="Hand" />
