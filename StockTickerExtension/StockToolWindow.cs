@@ -82,7 +82,10 @@ namespace StockTickerExtension
                 }
                 else
                 {
-                    _statusUpdater.Start();
+                    if (tb.IsMonitoring())
+                    {
+                        _statusUpdater.Start();
+                    }
                 }
                 tb.SaveConfig();
             }

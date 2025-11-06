@@ -54,6 +54,7 @@
     <Compile Include="FuzzySearchDialog.xaml.cs">
       <DependentUpon>FuzzySearchDialog.xaml</DependentUpon>
     </Compile>
+    <Compile Include="StockInfoFetcher.cs" />
     <Compile Include="StockStatusBarUpdater.cs" />
     <Compile Include="StockTickerExtensionPackage.cs" />
     <Compile Include="StockToolWindow.cs" />

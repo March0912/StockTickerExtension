@@ -2,14 +2,15 @@
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 
 namespace StockTickerExtension
 {
     public static class Logger
     {
         private static readonly object _lock = new object();
-        private static string _logDir;
-        private static string _logFile;
+        private static readonly string _logDir;
+        private static readonly string _logFile;
 
         static Logger()
         {
@@ -36,27 +37,50 @@ namespace StockTickerExtension
                         File.Delete(file);
                 }
             }
-            catch { /* 忽略清理异常 */ }
+            catch
+            {
+                // 忽略清理异常
+            }
         }
 
-        public static void Info(string message) => WriteLog("INFO", message);
-        public static void Error(string message) => WriteLog("ERROR", message);
-        public static void Debug(string message) => WriteLog("DEBUG", message);
+        public static void Info(string message,
+            [CallerFilePath] string file = "",
+            [CallerMemberName] string member = "",
+            [CallerLineNumber] int line = 0)
+            => WriteLog("INFO", message, file, member, line);
 
-        private static void WriteLog(string level, string message)
+        public static void Error(string message,
+            [CallerFilePath] string file = "",
+            [CallerMemberName] string member = "",
+            [CallerLineNumber] int line = 0)
+            => WriteLog("ERROR", message, file, member, line);
+
+        public static void Debug(string message,
+            [CallerFilePath] string file = "",
+            [CallerMemberName] string member = "",
+            [CallerLineNumber] int line = 0)
+            => WriteLog("DEBUG", message, file, member, line);
+
+        private static void WriteLog(string level, string message, string file, string member, int line)
         {
-            string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {message}";
+            string fileName = Path.GetFileName(file);
+            string logLine = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] [{fileName}:{line}] {member}() - {message}";
+
             Task.Run(() =>
             {
                 try
                 {
                     lock (_lock)
                     {
-                        File.AppendAllText(_logFile, line + Environment.NewLine, Encoding.UTF8);
+                        File.AppendAllText(_logFile, logLine + Environment.NewLine, Encoding.UTF8);
                     }
                 }
-                catch { /* 忽略写入异常 */ }
+                catch
+                {
+                    // 忽略写入异常
+                }
             });
         }
     }
+
 }

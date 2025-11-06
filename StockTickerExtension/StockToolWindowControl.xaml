@@ -53,9 +53,8 @@
 
             <!-- 顶部控制面板 -->
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="0" HorizontalAlignment="Left">
-                <ComboBox x:Name="StockTypeComboBox" Width="80" SelectedIndex="0" Margin="6,0"/>
                 <TextBlock x:Name="StockCode" Text="Watch list:" VerticalAlignment="Center" Margin="6,0"/>
-                <ComboBox x:Name="CodeTextBox" Width="150" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
+                <ComboBox x:Name="CodeTextBox" Width="180" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
                 <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80" Cursor="Hand" />
                 <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80" Cursor="Hand"/>
                 <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
@@ -71,11 +70,11 @@
             <!-- 第二行：持仓信息 -->
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="1" HorizontalAlignment="Left">                
                 <TextBlock x:Name="NumberSharesBox" Text="Number of Shares:" VerticalAlignment="Center" Margin="6,0" />
-                <TextBox x:Name="SharesBox" Width="80" Text="" />
-                <TextBlock Text="Cost Price:" VerticalAlignment="Center" Margin="6,0"/>
-                <TextBox x:Name="CostBox" Width="60" Text=""/>
+                <TextBox x:Name="SharesBox" Width="80" Text="" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Text="Cost Price:" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="6,0"/>
+                <TextBox x:Name="CostBox" Width="60" Text="" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="CurrentPriceLabel" Text="Current:" VerticalAlignment="Center" Margin="6,0" FontWeight="Bold" />
-                <TextBlock x:Name="CurrentPriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="CurrentPriceText" Text="--" FontSize="24"  HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="OpenPriceLabel" Text="Open:" VerticalAlignment="Center" Margin="6,0" />
                 <TextBlock x:Name="OpenPriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="HighestPriceLabel" Text="High:" VerticalAlignment="Center" Margin="6,0" />
@@ -84,8 +83,8 @@
                 <TextBlock x:Name="LowestPriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="Fluctuation" Text="Fluctuation:" VerticalAlignment="Center" Margin="6,0"/>
                 <TextBlock x:Name="ChangePercentText" Text="--%" FontWeight="Bold" Margin="6,0" VerticalAlignment="Center" />
-                <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="6,0"/>
-                <TextBlock x:Name="TodayProfitText" Text="Today: --" Margin="6,0"/>
+                <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="6,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TodayProfitText" Text="Today: --" Margin="6,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Stoped" VerticalAlignment="Center" Margin="6,0" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="6" Grid.Row="2" HorizontalAlignment="Left">
@@ -94,19 +93,22 @@
                 <CheckBox x:Name="MA20" Content="MA20" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
                 <CheckBox x:Name="MA30" Content="MA30" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
                 <CheckBox x:Name="MA60" Content="MA60" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
+                <TextBlock x:Name="OtherStocksInfo" Text="---" HorizontalAlignment="Right"  VerticalAlignment="Center" Margin="6,0" />
             </StackPanel>
-            <!-- 第三行：图表区域 -->
-            <Grid Grid.Row="3" Margin="3">
-                <Grid.RowDefinitions>
-                    <!-- 主图：价格/K线 -->
-                    <RowDefinition Height="3*"/>
-                    <!-- 副图：成交量 -->
-                    <RowDefinition Height="1.5*"/>
-                </Grid.RowDefinitions>
-                <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" Grid.Row="0" HorizontalAlignment="Stretch" Margin="0,0,20,6"
-                           Background="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}"/>
-                <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="200" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,0,20,6"
-                           Background="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
+            <!-- 第三行：图表区域 + 右侧信息面板 -->
+            <Grid Grid.Row="3" Margin="10, 0, 10, 0">
+                <Grid Grid.Column="0" Margin="0,0,0,0">
+                    <Grid.RowDefinitions>
+                        <!-- 主图：价格/K线 -->
+                        <RowDefinition Height="3*"/>
+                        <!-- 副图：成交量 -->
+                        <RowDefinition Height="1.5*"/>
+                    </Grid.RowDefinitions>
+                    <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" Grid.Row="0" HorizontalAlignment="Stretch" Margin="0,0,20,6"
+                                   Background="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}"/>
+                    <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="200" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,0,20,6"
+                                   Background="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
+                 </Grid>
             </Grid>
         </Grid>
     </ScrollViewer>

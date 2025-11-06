@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.PlatformUI;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -12,11 +13,10 @@ namespace StockTickerExtension
 {
     public partial class FuzzySearchDialog : Window
     {
-        public string SelectedCode { get; private set; }
-        public string SelectedName { get; private set; }
-
-		private bool _isClosing = false;
+        private List<StockInfo> _list;
+        private bool _isClosing = false;
 		public event Action<StockInfo> StockSelected;
+		
 
 		public FuzzySearchDialog(List<StockInfo> list)
         {
@@ -49,10 +49,11 @@ namespace StockTickerExtension
 			{
 				var item = new ListViewItem
 				{
-					Content = $"{stock.Code} {stock.Name}",
+					Content = $"{stock.Code} {stock.Name} {stock.StockType}",
 				};				
 				ResultList.Items.Add(item);
 			}
+			_list = list;
             InitUIColor();
         }
 
@@ -60,15 +61,13 @@ namespace StockTickerExtension
         {
 			if(ResultList.SelectedItem is ListViewItem item && item.IsSelected)
             {
-                SelectedCode = item.Content.ToString().Split(' ')[0];
-                SelectedName = item.Content.ToString().Split(' ')[1];
-
-				StockInfo info = new StockInfo
+                int idx = ResultList.SelectedIndex;
+				if (idx >= 0 && idx < _list.Count)
 				{
-					Code = SelectedCode,
-					Name = SelectedName
-				};
-				StockSelected?.Invoke(info);
+					StockInfo info = _list[idx];
+
+					StockSelected?.Invoke(info);
+				}
 				SafeClose();
 			}
         }

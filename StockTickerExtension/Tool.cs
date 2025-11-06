@@ -1,6 +1,8 @@
-﻿using System;
+﻿using Microsoft.VisualStudio.OLE.Interop;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Media;
 
 namespace StockTickerExtension
 {
@@ -152,9 +154,333 @@ namespace StockTickerExtension
 
             return result;
         }
+        static public System.Windows.Media.Color ColorFromHex(string hex, double opacity = 1.0)
+        {
+            // hex like "#RRGGBB" or "#AARRGGBB"
+            try
+            {
+                var c = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex);
+                c.A = (byte)(opacity * 255);
+                return c;
+            }
+            catch
+            {
+                return Colors.Transparent;
+            }
+        }
+        static public StockMarket ToStockMarket(string code)
+        {
+            StockMarket sm = StockMarket.StockA;
+            switch (code.ToLower())
+            {
+                case "neeq":       //科创板、北交所、新三板等
+                case "23":  //科创板
+                case "astock":
+                    sm = StockMarket.StockA;
+                    break;
+                case "hk":
+                    sm = StockMarket.StockHK;
+                    break;
+                case "usstock":
+                    sm = StockMarket.StockUS;
+                    break;
+                default:
+                    sm = StockMarket.StockA;
+                    break;
+            }
+            return sm;
+        }
+        static public string GetSecId(StockMarket stockType, string code)
+        {
+            string secId = code;
+            switch (stockType)
+            {
+                case StockMarket.StockA:
+                    {
+                        char first = code[0];
+                        if (first == '0' || first == '2' || first == '3')
+                        {
+                            secId = "0." + code;
+                        }
+                        else if (first == '6' || first == '9')
+                        {
+                            secId = "1." + code;
+                        }
+                        break;
+                    }
+                case StockMarket.StockHK:
+                    {
+                        secId = "116." + code;
+                        break;
+                    }
+                case StockMarket.StockUS:
+                    {
+                        secId = "105." + code;
+                        break;
+                    }
+                default:
+                    secId = "0." + code;
+                    break;
+            }
+            return secId;
+        }
+        static public bool IsWeekend(DateTime dt) => dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday;
+        static public bool IsTradingTime(StockMarket stockType, DateTime dt)
+        {
+            if (Tool.IsWeekend(dt))
+                return false;
+
+            if (stockType == StockMarket.StockA)
+            {
+                TimeSpan morningStart = new TimeSpan(9, 30, 0);
+                TimeSpan morningEnd = new TimeSpan(11, 30, 0);
+                TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
+                TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
+
+                TimeSpan nowTime = dt.TimeOfDay;
+                return (nowTime >= morningStart && nowTime <= morningEnd) ||
+                       (nowTime >= afternoonStart && nowTime <= afternoonEnd);
+            }
+            else if (stockType == StockMarket.StockHK)
+            {
+                TimeSpan morningStart = new TimeSpan(9, 30, 0);
+                TimeSpan morningEnd = new TimeSpan(12, 00, 0);
+                TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
+                TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
+
+                TimeSpan nowTime = dt.TimeOfDay;
+                return (nowTime >= morningStart && nowTime <= morningEnd) ||
+                       (nowTime >= afternoonStart && nowTime <= afternoonEnd);
+            }
+            else// if (_stockType == StockType.StockUS)
+            {
+                // 判断是否夏令时（美东时间）
+                var easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+                bool isDst = easternZone.IsDaylightSavingTime(DateTime.UtcNow);
+
+                DateTime today = DateTime.Today;
+                // 夏令时：21:30 - 次日04:00
+                // 冬令时：22:30 - 次日05:00
+                DateTime start = isDst ? today.AddHours(21).AddMinutes(30) : today.AddHours(22).AddMinutes(30);
+                start = start.AddDays(-1);
+                DateTime end = isDst ? today.AddDays(1).AddHours(4) : today.AddDays(1).AddHours(5);
+                end = end.AddDays(-1);
+
+                TimeSpan nowTime = dt.TimeOfDay;
+                return (nowTime >= start.TimeOfDay && nowTime <= end.TimeOfDay);
+            }
+        }
+        static public string PeriodToKType(PeriodType period)
+        {
+            string kType;
+            switch (period)
+            {
+                case PeriodType.DailyK:
+                    kType = "101";
+                    break;
+                case PeriodType.WeeklyK:
+                    kType = "102";
+                    break;
+                case PeriodType.MonthlyK:
+                    kType = "103";
+                    break;
+                case PeriodType.QuarterlyK:
+                    kType = "104";
+                    break;
+                case PeriodType.YearlyK:
+                    kType = "105";
+                    break;
+                default:
+                    kType = "101";
+                    break;
+            }
+            return kType;
+        }
+        static public List<string> BuildTradingMinutes(StockMarket stockType, DateTime date)
+        {
+            var list = new List<string>();
+
+            if (stockType == StockMarket.StockA)
+            {
+                var t = date.AddHours(9).AddMinutes(30);
+                var end = date.AddHours(11).AddMinutes(30);
+                while (t <= end)
+                {
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1);
+                }
+
+                t = date.AddHours(13);
+                end = date.AddHours(15);
+                while (t <= end)
+                {
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1);
+                }
+            }
+            else if (stockType == StockMarket.StockHK)
+            {
+                var t = date.AddHours(9).AddMinutes(30);
+                var end = date.AddHours(12).AddMinutes(00);
+                while (t <= end)
+                {
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1);
+                }
+
+                t = date.AddHours(13);
+                end = date.AddHours(16);
+                while (t <= end)
+                {
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1);
+                }
+            }
+            else// if (_stockType == StockType.StockUS)
+            {
+                // 判断是否夏令时（美东时间）
+                var easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+                bool isDst = easternZone.IsDaylightSavingTime(DateTime.UtcNow);
+
+                // 夏令时：21:30 - 次日04:00
+                // 冬令时：22:30 - 次日05:00
+                DateTime start = isDst ? date.AddHours(21).AddMinutes(30) : date.AddHours(22).AddMinutes(30);
+                start = start.AddDays(-1);
+                DateTime end = isDst ? date.AddDays(1).AddHours(4) : date.AddDays(1).AddHours(5);
+                end = end.AddDays(-1);
+
+                var t = start;
+                while (t <= end)
+                {
+                    list.Add(t.ToString("yyyy-MM-dd HH:mm"));
+                    t = t.AddMinutes(1);
+                }
+            }
+            return list;
+        }
+        static public (List<double> ticks, List<string> labels) GenerateTimeAxisLabels(PeriodType period, DateTime[] dates, DateTime currentDate)
+        {
+            var dateCount = dates.Length;
+            var ticks = new List<double>();
+            var labels = new List<string>();
+
+            // 根据数据点数量确定标签密度
+            int labelInterval = Math.Max(dateCount, 10);
+            if (dateCount <= 10)
+            {
+                labelInterval = 1;
+            }
+            else// if (dateCount > 10)
+            {
+                labelInterval = Math.Max(1, dateCount / 10); // 最多显示10个标签
+            }
+
+            // 根据不同的K线周期生成时间标签
+            switch (period)
+            {
+                case PeriodType.DailyK:
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
+                    {
+                        // 从当前日期往前推算
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            date = currentDate.AddDays(-(dateCount - 1 - i));
+                        }
+                        ticks.Add(i);
+                        labels.Add(date.ToString("MM/dd"));
+                    }
+                    break;
+                case PeriodType.WeeklyK:
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
+                    {
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            date = currentDate.AddDays(-(dateCount - 1 - i) * 7);
+                        }
+                        ticks.Add(i);
+                        labels.Add(date.ToString("MM/dd"));
+                    }
+                    break;
+                case PeriodType.MonthlyK:
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
+                    {
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            date = currentDate.AddMonths(-(dateCount - 1 - i));
+                        }
+                        ticks.Add(i);
+                        labels.Add(date.ToString("yyyy/MM"));
+                    }
+                    break;
+                case PeriodType.QuarterlyK:
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
+                    {
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            date = currentDate.AddMonths(-(dateCount - 1 - i) * 3);
+                        }
+                        ticks.Add(i);
+                        labels.Add($"{date.Year}/Q{((date.Month - 1) / 3) + 1}");
+                    }
+                    break;
+                case PeriodType.YearlyK:
+                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
+                    {
+                        DateTime date = new DateTime();
+                        if (dates != null && dates.Length > 0)
+                        {
+                            date = dates[i];
+                        }
+                        else
+                        {
+                            date = currentDate.AddYears(-(dateCount - 1 - i));
+                        }
+                        var dStr = date.ToString("yyyy/MM");
+                        if (!labels.Contains(dStr))
+                        {
+                            ticks.Add(i);
+                            labels.Add(dStr);
+                        }
+                    }
+                    break;
+                default:
+                    // 默认显示索引
+                    for (int i = 0; i < dateCount; i += labelInterval)
+                    {
+                        ticks.Add(i);
+                        labels.Add(i.ToString());
+                    }
+                    break;
+            }
+
+            ticks.Reverse();
+            labels.Reverse();
+            return (ticks, labels);
+        }
+
     }
 
-	public partial class StockSnapshot
+    public partial class StockSnapshot
 	{
 		public string Code { get; set; }
 		public string Name { get; set; }
