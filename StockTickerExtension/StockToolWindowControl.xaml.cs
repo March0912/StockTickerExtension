@@ -660,8 +660,14 @@ namespace StockTickerExtension
         {
             foreach (var item in CodeTextBox.Items)
             {
-                if (item.ToString().Contains(text))
-                    return CodeTextBox.Items.IndexOf(item);
+                var list = item.ToString().Split(' ');
+                foreach (var str in list)
+                {
+                    if (str == text)
+                    {
+                        return CodeTextBox.Items.IndexOf(item);
+                    }
+                }
             }
             return -1;
         }
@@ -2231,7 +2237,7 @@ namespace StockTickerExtension
                     CodeTextBox.Text += " " + info.StockType.ToString();
                 }
                 UpdateStockType(info.StockType);
-                StartMonitoring();
+                StartMonitoring(false);
 			};
 
 			var transform = CodeTextBox.TransformToAncestor(this);
