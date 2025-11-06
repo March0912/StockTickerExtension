@@ -8,9 +8,6 @@ namespace StockTickerExtension
 {
     public class Tool
     {
-        /// <summary>
-        /// 检测KDJ金叉出现（上一根K<D，本根K≥D）
-        /// </summary>
         static public bool HasKDJGoldenCross(double[] closes, double[] highs, double[] lows)
         {
             if (closes == null || highs == null || lows == null || closes.Length < 10)
@@ -52,10 +49,6 @@ namespace StockTickerExtension
             }
             return false;
         }
-
-        /// <summary>
-        /// 检测KDJ死叉出现（上一根K>D，本根K≤D）
-        /// </summary>
         static public bool HasKDJDeadCross(double[] closes, double[] highs, double[] lows)
         {
             if (closes == null || highs == null || lows == null || closes.Length < 10)
@@ -168,7 +161,6 @@ namespace StockTickerExtension
                 return Colors.Transparent;
             }
         }
-
         static public StockMarket ToStockMarket(string code)
         {
             StockMarket sm = StockMarket.StockA;
@@ -226,7 +218,6 @@ namespace StockTickerExtension
             return secId;
         }
         static public bool IsWeekend(DateTime dt) => dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday;
-
         static public bool IsTradingTime(StockMarket stockType, DateTime dt)
         {
             if (Tool.IsWeekend(dt))
@@ -272,7 +263,6 @@ namespace StockTickerExtension
                 return (nowTime >= start.TimeOfDay && nowTime <= end.TimeOfDay);
             }
         }
-
         static public string PeriodToKType(PeriodType period)
         {
             string kType;
@@ -299,7 +289,6 @@ namespace StockTickerExtension
             }
             return kType;
         }
-
         static public List<string> BuildTradingMinutes(StockMarket stockType, DateTime date)
         {
             var list = new List<string>();
@@ -362,7 +351,6 @@ namespace StockTickerExtension
             }
             return list;
         }
-
         static public (List<double> ticks, List<string> labels) GenerateTimeAxisLabels(PeriodType period, DateTime[] dates, DateTime currentDate)
         {
             var dateCount = dates.Length;
@@ -487,7 +475,6 @@ namespace StockTickerExtension
 
     public partial class StockSnapshot
 	{
-//         public string StockType { get; set; }
 		public string Code { get; set; }
 		public string Name { get; set; }
 		public double CurrentPrice { get; set; }
@@ -563,5 +550,4 @@ namespace StockTickerExtension
 		public string Name { get; set; }
 		public StockMarket StockType { get; set; }
 	}
-
 }

@@ -93,7 +93,7 @@
                 <CheckBox x:Name="MA20" Content="MA20" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
                 <CheckBox x:Name="MA30" Content="MA30" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
                 <CheckBox x:Name="MA60" Content="MA60" IsChecked="True" Margin="6,0" VerticalAlignment="Center" Cursor="Hand"/>
-                <TextBlock x:Name="OtherStocksInfo" Text="---" MaxWidth="300" VerticalAlignment="Center" Margin="6,0" />
+                <TextBlock x:Name="OtherStocksInfo" Text="---" HorizontalAlignment="Right"  VerticalAlignment="Center" Margin="6,0" />
             </StackPanel>
             <!-- 第三行：图表区域 + 右侧信息面板 -->
             <Grid Grid.Row="3" Margin="10, 0, 10, 0">
