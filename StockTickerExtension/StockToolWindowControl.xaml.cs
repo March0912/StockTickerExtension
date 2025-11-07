@@ -20,26 +20,11 @@ using System.Windows.Threading;
 
 namespace StockTickerExtension
 {
-    public class StockTokenSource : CancellationTokenSource
-    {
-        public StockTokenSource(string code, PeriodType period) : base()
-        {
-            _code = code;
-            _period = period;
-        }
-        public string _code { get; set; }
-        public PeriodType _period { get; set; }
-        public int _fetchIntervalSeconds = 2;
-    }
-
-    public class BackGroundTockenSource : CancellationTokenSource
-    {
-        public List<string> _stockList;
-        public int _curIndex = -1;
-    }
-
     public partial class StockToolWindowControl : UserControl
     {
+        const string s_trendsURL = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
+        const string s_klineURL = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
+
         private readonly StockToolWindow _ownerPane;
         private readonly ConfigManager _configManager = new ConfigManager();
         private readonly HttpClient _http = new HttpClient();
@@ -50,27 +35,20 @@ namespace StockTickerExtension
 
         private DispatcherTimer _uiTimer;
         private List<string> _tradingMinutes;
+        private BackGroundTockenSource _backgroundWatchListCts;
+
         private bool _monitoring = false;
         private bool _monitorOnce = false;
+        private bool _isBlackTheme = false;
+        private bool _isEditingCodeText = false;
+        private bool _refreshNow = false;
+
         private DateTime _currentDate;
         private StockMarket _stockType = StockMarket.StockA;
         private StockSnapshot _currentSnapshot;
         private Crosshair _crosshair;
         private FuzzySearchDialog _fuzzySearchDialog;
-        private bool _isBlackTheme = false;
-        private bool _isEditingCodeText = false;
         private ScottPlot.Plottable.Text _infoText;
-
-        private BackGroundTockenSource _backgroundWatchListCts;
-
-        // K线图缩放和拖拽相关字段
-        private bool _isDragging = false;
-        private System.Windows.Point _lastMousePosition;
-        private double _dragStartX = 0;
-        private int _dragStartIndex = 0;
-
-        const string s_trendsURL = "https://push2his.eastmoney.com/api/qt/stock/trends2/get";
-        const string s_klineURL = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
 
         public StockToolWindowControl(ToolWindowPane owner)
         {
@@ -150,8 +128,7 @@ namespace StockTickerExtension
                 WpfPlotVolume.Configuration.LeftClickDragPan = false;
                 WpfPlotVolume.Visibility = Visibility.Visible;
             }
-
-            StartMonitoring(false);
+            StartMonitoring();
         }
 
         private void UpdateStockType(StockMarket type)
@@ -261,7 +238,7 @@ namespace StockTickerExtension
                     sm = StockMarket.StockA;
                 }
                 UpdateStockType(sm);
-                StartMonitoring(false, text);                
+                StartMonitoring(text);                
             }
 		}
                 
@@ -676,7 +653,7 @@ namespace StockTickerExtension
             return -1;
         }
 
-		private void StartMonitoring(bool bRestart = true, string text = "")
+		private void StartMonitoring(string text = "")
         {
             PeriodType period = (PeriodType)PeriodComboBox.SelectedIndex;
             if (!CheckTradingTime())
@@ -689,18 +666,15 @@ namespace StockTickerExtension
                 _monitorOnce = true;
             }
 
-            if (bRestart)
-            {
-                StopMonitoring();
-            }
-            _monitoring = true;
-
             var codeName = string.IsNullOrEmpty(text) ? CodeTextBox.Text?.Trim() : text;
             if(codeName == null)
             {
                 return; 
             }
+
+            _monitoring = true;
             _currentSnapshot = null;
+            _refreshNow = true;
 
             var code = codeName.Split(' ')[0];
 
@@ -709,7 +683,7 @@ namespace StockTickerExtension
                 _cts = new StockTokenSource(code, period);
                 _ = Task.Run(() => MonitorLoopAsync(_cts));
             }
-            else if(!bRestart)
+            else
             {
                 _cts._code = code;
                 _cts._period = period;
@@ -800,6 +774,12 @@ namespace StockTickerExtension
 
                 for (int i = 0; i < cts._fetchIntervalSeconds * 10; i++)
                 {
+                    if (_refreshNow)
+                    {
+                        _refreshNow = false;
+                        break;
+                    }
+
                     if (cts.Token.IsCancellationRequested) break;
                     await Task.Delay(100, cts.Token);
                 }
@@ -1132,6 +1112,10 @@ namespace StockTickerExtension
                 {
                     var txt = bgts._stockList[bgts._curIndex].ToString();
                     txt = txt.Substring(0, txt.IndexOf(' '));
+                    if(txt == _currentSnapshot?.Code)
+                    {
+                        continue;
+                    }
                     var info = StockInfoFetcher.FetchStockInfoAsync(txt, _stockType);
                     if (info != null)
                     {
@@ -1823,7 +1807,7 @@ namespace StockTickerExtension
             var val = snap.ChangePercents != null ? snap.ChangePercents.Last() : 0;
             var foreground = val > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
 
-            CurrentPriceText.Text = snap.CurrentPrice.ToString();
+            CurrentPriceText.Text = snap.CurrentPrice.ToString("F2");
             CurrentPriceText.Foreground = foreground;
 
             if(GetCurrentPeriod() == PeriodType.Intraday)
@@ -1905,37 +1889,6 @@ namespace StockTickerExtension
             // 重新渲染
             WpfPlotPrice.Render();
             WpfPlotVolume.Render();
-        }
-
-        private void OnWpfMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (GetCurrentPeriod() == PeriodType.Intraday) return; // 分时图不处理拖拽
-            
-            // 获取事件来源的控件
-            var sourceControl = sender as ScottPlot.WpfPlot;
-            if (sourceControl == null) return;
-            
-            _isDragging = true;
-            _lastMousePosition = e.GetPosition(sourceControl);
-            _dragStartX = _lastMousePosition.X;
-            
-            // 获取当前X轴范围
-            var xLimits = WpfPlotPrice.Plot.GetAxisLimits();
-            _dragStartIndex = (int)xLimits.XMin;
-            
-            sourceControl.CaptureMouse();
-        }
-
-        private void OnWpfMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (GetCurrentPeriod() == PeriodType.Intraday) return;
-            
-            // 获取事件来源的控件
-            var sourceControl = sender as ScottPlot.WpfPlot;
-            if (sourceControl == null) return;
-            
-            _isDragging = false;
-            sourceControl.ReleaseMouseCapture();
         }
 
         private void OnWpfMouseMove(object sender, MouseEventArgs e)
@@ -2032,32 +1985,6 @@ namespace StockTickerExtension
                 _crosshair.VerticalLine.Color = System.Drawing.Color.Red;
 
                 WpfPlotPrice.Render();
-            }
-
-            System.Windows.Point currentPos = e.GetPosition(sourceControl);
-            double deltaX = currentPos.X - _lastMousePosition.X;
-            if (_isDragging && Math.Abs(deltaX) > 1) // 避免微小移动
-            {
-                // 获取当前X轴范围
-                var xLimits = WpfPlotPrice.Plot.GetAxisLimits();
-                double currentRange = xLimits.XMax - xLimits.XMin;
-                
-                // 计算移动距离对应的X轴偏移
-                double xOffset = -(deltaX / sourceControl.ActualWidth) * currentRange;
-                
-                // 计算新的X轴范围
-                double newXMin = xLimits.XMin + xOffset;
-                double newXMax = xLimits.XMax + xOffset;
-                
-                // 应用新的X轴范围到两个图表
-                WpfPlotPrice.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
-                WpfPlotVolume.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
-                
-                // 重新渲染
-                WpfPlotPrice.Render();
-                WpfPlotVolume.Render();
-                
-                _lastMousePosition = currentPos;
             }
         }
 
@@ -2241,7 +2168,7 @@ namespace StockTickerExtension
                     CodeTextBox.Text += " " + info.StockType.ToString();
                 }
                 UpdateStockType(info.StockType);
-                StartMonitoring(false);
+                StartMonitoring();
 			};
 
 			var transform = CodeTextBox.TransformToAncestor(this);
