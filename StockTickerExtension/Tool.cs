@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Windows.Media;
 
 namespace StockTickerExtension
@@ -556,8 +557,23 @@ namespace StockTickerExtension
 		public string Code { get; set; }
 		public string Name { get; set; }
 		public StockMarket StockType { get; set; }
-
-		//         public string DisplayText => $"{Name} ({Code}) [{StockType}]";
 	}
+    public class StockTokenSource : CancellationTokenSource
+    {
+        public StockTokenSource(string code, PeriodType period) : base()
+        {
+            _code = code;
+            _period = period;
+        }
+        public string _code { get; set; }
+        public PeriodType _period { get; set; }
+        public int _fetchIntervalSeconds = 2;
+    }
+
+    public class BackGroundTockenSource : CancellationTokenSource
+    {
+        public List<string> _stockList;
+        public int _curIndex = -1;
+    }
 
 }
