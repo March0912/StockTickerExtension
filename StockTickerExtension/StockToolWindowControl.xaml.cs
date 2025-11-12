@@ -163,7 +163,7 @@ namespace StockTickerExtension
                         UpdateStatus("Please enter a stock code.", System.Windows.Media.Brushes.Red);
                         return;
                     }
-                    UpdateStatus($"Searching {text}...", System.Windows.Media.Brushes.GreenYellow);
+                    UpdateStatus($"Searching {text}...", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
 
                     bool isOnlyDigit = text.All(char.IsDigit);
                     if (isOnlyDigit)
@@ -198,7 +198,7 @@ namespace StockTickerExtension
                         List<StockInfo> results = await SearchStocks_Async(text);
                         if (results.Count > 0)
                         {
-                            UpdateStatus($"Search result: total {results.Count} stocks!", System.Windows.Media.Brushes.GreenYellow);
+                            UpdateStatus($"Search result: total {results.Count} stocks!", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
                             ShowFuzzyDialog(results);
                         }
                         else
@@ -320,6 +320,8 @@ namespace StockTickerExtension
 
             _uiTimer = new DispatcherTimer(TimeSpan.FromSeconds(0.1), DispatcherPriority.Normal, UiTimer_Tick, Dispatcher.CurrentDispatcher);
             _uiTimer.Stop();
+
+            Logger.Info("StockToolWindowControl init finished");
         }
 
         private void InitCodeTextBox()
@@ -350,6 +352,7 @@ namespace StockTickerExtension
                 sm = StockMarket.StockA;
             }
             UpdateStockType(sm);
+            Logger.Info($"InitCodeTextBox, current stock: {CodeTextBox.Text}, stock market: {sm}");
         }
 
         private void InitPeriodComboBox()
@@ -418,6 +421,7 @@ namespace StockTickerExtension
                 WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
             WpfPlotVolume.Visibility = Visibility.Hidden;
+            Logger.Info("InitPriceChat finished");
         }
 
         private void InitUIColor()
@@ -615,54 +619,6 @@ namespace StockTickerExtension
             });
         }
 
-        private bool IsWeekend(DateTime dt) => dt.DayOfWeek == DayOfWeek.Saturday || dt.DayOfWeek == DayOfWeek.Sunday;
-
-		private bool IsTradingTime(DateTime dt)
-        {
-            if (IsWeekend(dt))
-                return false;
-
-            if (_stockType == StockMarket.StockA)
-            {
-                TimeSpan morningStart = new TimeSpan(9, 30, 0);
-                TimeSpan morningEnd = new TimeSpan(11, 30, 0);
-                TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
-                TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
-
-                TimeSpan nowTime = dt.TimeOfDay;
-                return (nowTime >= morningStart && nowTime <= morningEnd) ||
-                       (nowTime >= afternoonStart && nowTime <= afternoonEnd);
-            }
-            else if (_stockType == StockMarket.StockHK)
-            {
-                TimeSpan morningStart = new TimeSpan(9, 30, 0);
-                TimeSpan morningEnd = new TimeSpan(12, 00, 0);
-                TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
-                TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
-
-                TimeSpan nowTime = dt.TimeOfDay;
-                return (nowTime >= morningStart && nowTime <= morningEnd) ||
-                       (nowTime >= afternoonStart && nowTime <= afternoonEnd);
-            }
-            else// if (_stockType == StockType.StockUS)
-            {
-                // 判断是否夏令时（美东时间）
-                var easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-                bool isDst = easternZone.IsDaylightSavingTime(DateTime.UtcNow);
-
-                DateTime today = DateTime.Today;
-                // 夏令时：21:30 - 次日04:00
-                // 冬令时：22:30 - 次日05:00
-                DateTime start = isDst ? today.AddHours(21).AddMinutes(30) : today.AddHours(22).AddMinutes(30);
-                start = start.AddDays(-1);
-                DateTime end = isDst ? today.AddDays(1).AddHours(4) : today.AddDays(1).AddHours(5);
-                end = end.AddDays(-1);
-
-                TimeSpan nowTime = dt.TimeOfDay;
-                return (nowTime >= start.TimeOfDay && nowTime <= end.TimeOfDay);
-            }
-        }
-
 		private bool CheckTradingTime()
         {
             var codeName = CodeTextBox.Text?.Trim();
@@ -740,7 +696,7 @@ namespace StockTickerExtension
 
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
 
-            UpdateStatus($"{codeName} Conitoring started", System.Windows.Media.Brushes.LightBlue);
+            UpdateStatus($"{codeName} Conitoring started", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
            
             StartBtn.IsEnabled = false;
             StartBtn.FontWeight = FontWeights.Normal;
@@ -761,6 +717,8 @@ namespace StockTickerExtension
                 return;
             }
 
+            Logger.Info("Stopping monitoring for stock: " + CodeTextBox.Text);
+
             StopBtn.IsEnabled = false;
             StopBtn.FontWeight = FontWeights.Normal;
 
@@ -779,7 +737,7 @@ namespace StockTickerExtension
             _backgroundWatchListCts = null;
             OtherStocksInfo.Text = "";
 
-            UpdateStatus($"{_currentSnapshot?.Code} {_currentSnapshot?.Name} Conitoring stopped", System.Windows.Media.Brushes.Green);
+            UpdateStatus($"{_currentSnapshot?.Code} {_currentSnapshot?.Name} Conitoring stopped", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
             if (_uiTimer.IsEnabled) 
                 _uiTimer.Stop();
 
@@ -790,6 +748,7 @@ namespace StockTickerExtension
         {
             if (!_monitoring)
                 return;
+            Logger.Info("Monitoring loop started!");
 
             while (!cts.Token.IsCancellationRequested)
             {
@@ -817,7 +776,7 @@ namespace StockTickerExtension
                     {
                         StopBtn_Click(null, null);
                     }));
-                    UpdateStatus("Error:" + ex.Message);
+                    UpdateStatus("Error:" + ex.Message, System.Windows.Media.Brushes.Red);
                     Logger.Error(ex.Message);
                 }
 
@@ -833,6 +792,7 @@ namespace StockTickerExtension
                     await Task.Delay(100, cts.Token);
                 }
             }
+            Logger.Info("Monitoring loop stopped!");
         }
 
 		private async Task<StockSnapshot> FetchKLinesSnapshot_Async(string code, PeriodType period)
@@ -1104,90 +1064,63 @@ namespace StockTickerExtension
             }
         }
 
-        private string GetSecId(string code)
-        {
-            string secId = code;
-            switch (_stockType)
-            {
-                case StockMarket.StockA:
-                    {
-                        char first = code[0];
-                        if (first == '0' || first == '2' || first == '3')
-                        {
-                            secId = "0." + code;
-                        }
-                        else if (first == '6' || first == '9')
-                        {
-                            secId = "1." + code;
-                        }
-                        break;
-                    }
-                case StockMarket.StockHK:
-                    {
-                        secId = "116." + code;
-                        break;
-                    }
-                case StockMarket.StockUS:
-                    {
-                        secId = "105." + code;
-                        break;
-                    }
-                default:
-                    secId = "0." + code;
-                    break;
-            }
-            return secId;
-        }
-
         private void UiTimer_Tick(object sender, EventArgs e)
         {
             if (!_monitoring)
                 return;
 
-            if (_queue.TryDequeue(out var snap))
+            try
             {
-                _currentSnapshot = snap;
-
-                if (!CodeTextBox.Text.StartsWith(snap.Code + " " + snap.Name))
+                if (_queue.TryDequeue(out var snap))
                 {
-                    if (!_isEditingCodeText || _monitorOnce)
+                    _currentSnapshot = snap;
+
+                    if (!CodeTextBox.Text.StartsWith(snap.Code + " " + snap.Name))
                     {
-                        CodeTextBox.Text = snap.Code + " " + snap.Name;
+                        if (!_isEditingCodeText || _monitorOnce)
+                        {
+                            CodeTextBox.Text = snap.Code + " " + snap.Name;
+                        }
                     }
-                }
 
-                if (string.IsNullOrEmpty(StatusText.Text) || StatusText.Text.Contains("Conitoring started"))
-                {
-                    UpdateStatus($"Monitoring {snap.Code} {snap.Name}", System.Windows.Media.Brushes.Green);
-                }
+                    if (string.IsNullOrEmpty(StatusText.Text) || StatusText.Text.Contains("Conitoring started"))
+                    {
+                        UpdateStatus($"Monitoring {snap.Code} {snap.Name}", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
+                    }
 
-                UpdatePriceChart(snap);
-                UpdateMAText(snap);
-                UpdatePricesText(snap);
+                    UpdatePriceChart(snap);
+                    UpdateMAText(snap);
+                    UpdatePricesText(snap);
+                    UpdateProfitDisplay();
 
-                UpdateProfitDisplay();
-
-//                 if (GetCurrentPeriod() == PeriodType.DailyK || GetCurrentPeriod() == PeriodType.WeeklyK || GetCurrentPeriod() == PeriodType.MonthlyK)
-//                 {
-//                     CheckKdjGoldenCross(snap);
-//                 }
-                if(_monitorOnce)
-                {
-                    StopBtn_Click(null, null);
-                    _monitorOnce = false;
-                }
-                else
-                {
-                    if(!Tool.IsTradingTime(_stockType, DateTime.Now))
+                    //                 if (GetCurrentPeriod() == PeriodType.DailyK || GetCurrentPeriod() == PeriodType.WeeklyK || GetCurrentPeriod() == PeriodType.MonthlyK)
+                    //                 {
+                    //                     CheckKdjGoldenCross(snap);
+                    //                 }
+                    if (_monitorOnce)
                     {
                         StopBtn_Click(null, null);
+                        _monitorOnce = false;
+                    }
+                    else
+                    {
+                        if (!Tool.IsTradingTime(_stockType, DateTime.Now))
+                        {
+                            StopBtn_Click(null, null);
+                        }
                     }
                 }
             }
+            catch(System.Exception ex)
+            {
+                Logger.Error($"UiTimer_Tick exception: {ex}");
+            }
         }
 
-        private async Task BackgroundWatchRun(BackGroundTockenSource bgts)
+        private async Task BackgroundWatchRun_Async(BackGroundTockenSource bgts)
         {
+            Logger.Info("BackgroundWatchRun started");
+
             while (!bgts.Token.IsCancellationRequested && bgts._stockList != null && bgts._stockList.Count > 0)
             {
                 int nCount = bgts._stockList.Count;
@@ -1224,6 +1157,7 @@ namespace StockTickerExtension
                     Logger.Error(ex.Message);
                 }
             }
+            Logger.Info("BackgroundWatchRun ended");
         }
 
         private void StartMonitorKDJ(PeriodType period, string code)
@@ -1249,7 +1183,7 @@ namespace StockTickerExtension
             {
                 _backgroundWatchListCts = new BackGroundTockenSource();
                 _backgroundWatchListCts._stockList = CodeTextBox.Items.Cast<string>().ToList();
-                _ = Task.Run(() => BackgroundWatchRun(_backgroundWatchListCts));
+                _ = Task.Run(() => BackgroundWatchRun_Async(_backgroundWatchListCts));
             }
             else
             {
@@ -2124,6 +2058,7 @@ namespace StockTickerExtension
 
         private async Task MonitorKDJAsync(string code, CancellationToken token)
         {
+            Logger.Info("Start KDJ monitor for " + code);
             while (!token.IsCancellationRequested)
             {
                 try
@@ -2143,6 +2078,7 @@ namespace StockTickerExtension
                     Logger.Error("KDJ check error: " + ex.Message);
                 }
             }
+            Logger.Info("Stop KDJ monitor for " + code);
         }
 
         private void CheckKdjGoldenCross(StockSnapshot snap)
