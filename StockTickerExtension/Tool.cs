@@ -471,6 +471,11 @@ namespace StockTickerExtension
             labels.Reverse();
             return (ticks, labels);
         }
+        static public bool isDarkTheme(int r, int g, int b)
+        {
+            double luminance = 0.2126 * (double)r + 0.7152 * (double)g + 0.0722 * (double)b;
+            return luminance < 140;  // 阈值可按实际视觉调整
+        }
 
     }
 
