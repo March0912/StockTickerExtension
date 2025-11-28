@@ -484,6 +484,46 @@ namespace StockTickerExtension
             return luminance < 140;  // 阈值可按实际视觉调整
         }
 
+        static public List<MACDItem> CalcMacd(List<double> closes, int shortPeriod = 12, int longPeriod = 26, int signalPeriod = 9)
+        {
+            List<MACDItem> result = new List<MACDItem>();
+            if (closes == null || closes.Count == 0)
+                return result;
+
+            double emaShort = closes[0]; // 初始化
+            double emaLong = closes[0];
+            double dea = 0;
+
+            double kShort = 2.0 / (shortPeriod + 1);
+            double kLong = 2.0 / (longPeriod + 1);
+            double kDea = 2.0 / (signalPeriod + 1);
+
+            for (int i = 0; i < closes.Count; i++)
+            {
+                double close = closes[i];
+                if(double.IsNaN(close))
+                {
+                    continue;
+                }
+
+                emaShort = emaShort * (1 - kShort) + close * kShort;
+                emaLong = emaLong * (1 - kLong) + close * kLong;
+
+                double dif = emaShort - emaLong;
+                dea = dea * (1 - kDea) + dif * kDea;
+
+                double macd = (dif - dea) * 2;
+
+                result.Add(new MACDItem
+                {
+                    Dif = dif,
+                    Dea = dea,
+                    Macd = macd
+                });
+            }
+            return result;
+        }
+
     }
 
     public partial class StockSnapshot
@@ -557,12 +597,21 @@ namespace StockTickerExtension
 		StockHK,
 		StockUS
 	};
+
 	public class StockInfo
 	{
 		public string Code { get; set; }
 		public string Name { get; set; }
 		public StockMarket StockType { get; set; }
 	}
+
+    public class MACDItem
+    {
+        public double Dif { get; set; }
+        public double Dea { get; set; }
+        public double Macd { get; set; }   // 通常 = (DIF - DEA) * 2
+    }
+
     public class StockTokenSource : CancellationTokenSource
     {
         public StockTokenSource(string code, PeriodType period) : base()
