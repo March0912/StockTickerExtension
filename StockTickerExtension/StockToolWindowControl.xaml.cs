@@ -383,10 +383,6 @@ namespace StockTickerExtension
             WpfPlotPrice.Configuration.LeftClickDragPan = false;
             WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
 
-            // 为价格图添加鼠标事件
-//             WpfPlotPrice.MouseWheel += OnKLineMouseWheel;
-//             WpfPlotPrice.MouseLeftButtonDown += OnWpfMouseLeftButtonDown;
-//             WpfPlotPrice.MouseLeftButtonUp += OnWpfMouseLeftButtonUp;
             WpfPlotPrice.MouseMove += OnWpfMouseMove;
             WpfPlotPrice.MouseLeave += OnWpfMouseLeave;
             WpfPlotPrice.RightClicked -= WpfPlotPrice.DefaultRightClickEvent;
@@ -403,11 +399,6 @@ namespace StockTickerExtension
 
             WpfPlotVolume.Configuration.ScrollWheelZoom = false;
             WpfPlotVolume.Configuration.LeftClickDragPan = false;
-
-            // 为成交量图添加相同的鼠标事件，实现联动
-//             WpfPlotVolume.MouseWheel += OnKLineMouseWheel;
-//             WpfPlotVolume.MouseLeftButtonDown += OnWpfMouseLeftButtonDown;
-//             WpfPlotVolume.MouseLeftButtonUp += OnWpfMouseLeftButtonUp;
             WpfPlotVolume.RightClicked -= WpfPlotVolume.DefaultRightClickEvent;
 
             // 关键时间点
@@ -1228,7 +1219,7 @@ namespace StockTickerExtension
 
         private void DrawIntradayChart(StockSnapshot snap)
         {
-            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0)
+            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0 || snap.Volumes == null || snap.Volumes.Length == 0)
                 return;
 
             var crosshair = _crosshair; // 缓存旧的十字线
@@ -1454,7 +1445,7 @@ namespace StockTickerExtension
 
         private void DrawKLineChart(StockSnapshot snap)
         {
-            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0)
+            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0 || snap.KLineDates == null || snap.KLineDates.Length == 0)
                 return;
 
             var crosshair = _crosshair; // 缓存旧的十字线
