@@ -49,6 +49,7 @@ namespace StockTickerExtension
             // Do any initialization that requires the UI thread after switching to the UI thread.
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
             await StockToolWindowCommand.InitializeAsync(this);
+            CrashDumpHelper.RegisterExtensionOnlyHandlers();
         }
 
         #endregion
