@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="7C8A7DFA-DB19-4648-BE62-85D2D8ACD1F6" Version="1.0.13" Language="en-US" Publisher="March.XZY" />
+        <Identity Id="7C8A7DFA-DB19-4648-BE62-85D2D8ACD1F6" Version="1.0.14" Language="en-US" Publisher="March.XZY" />
         <DisplayName>StockWatcher</DisplayName>
         <Description xml:space="preserve">Display real-time stock prices, change percentages, and P/L information directly in the Visual Studio.
 Support customizable refresh intervals; information updates dynamically without switching windows. 
