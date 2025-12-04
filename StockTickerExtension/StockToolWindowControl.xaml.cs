@@ -372,6 +372,11 @@ namespace StockTickerExtension
             PeriodComboBox.Items.Add("Monthly K");
             PeriodComboBox.Items.Add("Quarterly K");
             PeriodComboBox.Items.Add("Yearly K");
+            PeriodComboBox.Items.Add("1 Minute");
+            PeriodComboBox.Items.Add("5 Minutes");
+            PeriodComboBox.Items.Add("15 Minutes");
+            PeriodComboBox.Items.Add("30 Minutes");
+            PeriodComboBox.Items.Add("60 Minutes");
 
             PeriodComboBox.SelectedIndex = 0;
             PeriodComboBox.SelectionChanged += PeriodComboBox_SelectionChanged;
@@ -795,7 +800,7 @@ namespace StockTickerExtension
                     Logger.Error(ex.Message);
                 }
 
-                for (int i = 0; i < cts._fetchIntervalSeconds * 10; i++)
+                for (int i = 0; i < cts._fetchIntervalSeconds; i++)
                 {
                     if (_refreshNow)
                     {
@@ -804,7 +809,7 @@ namespace StockTickerExtension
                     }
 
                     if (cts.Token.IsCancellationRequested) break;
-                    await Task.Delay(100, cts.Token);
+                    await Task.Delay(1000, cts.Token);
                 }
             }
             Logger.Info("Monitoring loop stopped!");
@@ -820,23 +825,8 @@ namespace StockTickerExtension
 
             var kType = Tool.PeriodToKType(period);
 
-            int dayCount = 150;
-            string begStr;
-			if(period == PeriodType.DailyK)
-				begStr = _currentDate.AddDays(-dayCount).ToString("yyyyMMdd"); // 多取 40 天以支持 MA 引导
-            else if (period == PeriodType.WeeklyK)
-                begStr = _currentDate.AddDays(-dayCount * 7).ToString("yyyyMMdd");
-            else if (period == PeriodType.MonthlyK)
-                begStr = _currentDate.AddMonths(-dayCount*4).ToString("yyyyMMdd");
-            else if (period == PeriodType.QuarterlyK)
-                begStr = _currentDate.AddMonths(-dayCount * 10).ToString("yyyyMMdd");
-            else if (period == PeriodType.YearlyK)
-                begStr = _currentDate.AddYears(-10).ToString("yyyyMMdd");
-            else
-                begStr = _currentDate.AddDays(-dayCount).ToString("yyyyMMdd");
-
-            string dateStr = _currentDate.ToString("yyyyMMdd");
-            var parameters = $"?secid={secid}&klt={kType}&fqt=1&beg={begStr}&end={dateStr}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57,f58";
+            var interval = Tool.GetRequestInterval(period, _currentDate);
+            var parameters = $"?secid={secid}&klt={kType}&fqt=1&beg={interval.Item1}&end={interval.Item2}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57,f58";
             var requestUrl = s_klineURL + parameters;
 
             string text;
@@ -1445,7 +1435,7 @@ namespace StockTickerExtension
 
         private void DrawKLineChart(StockSnapshot snap)
         {
-            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0 || snap.KLineDates == null || snap.KLineDates.Length == 0)
+            if (!_monitoring || snap == null || snap.Prices == null || snap.Prices.Length == 0 || snap.KLineDates == null || snap.KLineDates.Length == 0)
                 return;
 
             var crosshair = _crosshair; // 缓存旧的十字线
@@ -1488,259 +1478,49 @@ namespace StockTickerExtension
 
             // 设置 X 轴刻度 - 使用时间轴标签
             var (ticks, labels) = Tool.GenerateTimeAxisLabels(GetCurrentPeriod(), snap.KLineDates, GetCurrentDate());
-            if (ticks.Count > 0)
-                WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+            WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
 			WpfPlotPrice.Plot.YLabel("Price");
 
-            // --- 1.1) 计算并叠加 MA5 / MA10 / MA20 ---
-            // 优先使用预计算的严格窗口均线；若为空则退回本地计算
-
-            var ma5 = snap.MA5 ?? Tool.ComputeSimpleMovingAverage(closes, 5);
-            // 过滤 NaN，仅绘制有效点，避免 ScottPlot 因 NaN 抛异常
-            if (MA5.IsChecked == true)
             {
-				var xList = new List<double>();
-				var yList = new List<double>();
-				int n5 = Math.Min(xs.Length, ma5.Length);
-				int firstIdx = -1;
-				double firstVal = double.NaN;
-				for (int i = 0; i < n5; i++)
-				{
-					if (!double.IsNaN(ma5[i])) 
-                    { 
-                        firstIdx = i; 
-                        firstVal = ma5[i]; 
-                        break; 
-                    }
-				}
-				if (firstIdx >= 0)
-				{
-					for (int i = 0; i < firstIdx; i++) 
-                    { 
-                        xList.Add(xs[i]); 
-                        yList.Add(firstVal);
-                    }
-					for (int i = firstIdx; i < n5; i++)
-                    { 
-                        if (!double.IsNaN(ma5[i])) 
-                        { 
-                            xList.Add(xs[i]);
-                            yList.Add(ma5[i]);
-                        } 
-                    }
-				}
-				var xv = xList.ToArray(); 
-                var yv = yList.ToArray();
-                if (yv.Length > 1)
-                {
-                    var brush = MA5.Foreground as SolidColorBrush;
-                    var ma5Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma5Color, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
-                }
-			}
+                var ma5 = DrawMA5Line(snap);
+                var ma10 = DrawMA10Line(snap);
+                var ma20 = DrawMA20Line(snap);
+                var ma30 = DrawMA30Line(snap);
+                var ma60 = DrawMA60Line(snap);
 
-            var ma10 = snap.MA10 ?? Tool.ComputeSimpleMovingAverage(closes, 10);
-            if (MA10.IsChecked == true)
-            {
-                var xList = new List<double>();
-				var yList = new List<double>();
-				int n10 = Math.Min(xs.Length, ma10.Length);
-				int firstIdx = -1;
-				double firstVal = double.NaN;
-				for (int i = 0; i < n10; i++)
-				{
-					if (!double.IsNaN(ma10[i]))
-                    { 
-                        firstIdx = i; 
-                        firstVal = ma10[i];
-                        break; 
-                    }
-				}
-				if (firstIdx >= 0)
-				{
-					for (int i = 0; i < firstIdx; i++) 
-                    {
-                        xList.Add(xs[i]); 
-                        yList.Add(firstVal); 
-                    }
-					for (int i = firstIdx; i < n10; i++) 
-                    { 
-                        if (!double.IsNaN(ma10[i])) 
-                        {
-                            xList.Add(xs[i]); 
-                            yList.Add(ma10[i]);
-                        }
-                    }
-				}
-				var xv = xList.ToArray(); 
-                var yv = yList.ToArray();
-                if (yv.Length > 1)
+                // Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值
+                double yHigh = new[]
                 {
-                    var brush = MA10.Foreground as SolidColorBrush;
-                    var ma10Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma10Color, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
+                    highs.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                    ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                    ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                    ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                    ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                    ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max()
+                }.Max();
+                double yLow = new[]
+                {
+                    lows.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Min(),
+                    ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+                    ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+                    ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+                    ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+                    ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min()
+                }.Min();
+                
+                if (yHigh > yLow)
+                {
+                    double margin = (yHigh - yLow) * 0.06; // 6% margin
+                    WpfPlotPrice.Plot.SetAxisLimitsY(yLow - margin, yHigh + margin);
                 }
-			}
-
-            var ma20 = snap.MA20 ?? Tool.ComputeSimpleMovingAverage(closes, 20);
-            if(MA20.IsChecked == true)
-            {
-                var xList = new List<double>();
-				var yList = new List<double>();
-				int n20 = Math.Min(xs.Length, ma20.Length);
-				int firstIdx = -1;
-				double firstVal = double.NaN;
-				for (int i = 0; i < n20; i++)
-				{
-					if (!double.IsNaN(ma20[i])) 
-                    { 
-                        firstIdx = i;
-                        firstVal = ma20[i];
-                        break;
-                    }
-				}
-				if (firstIdx >= 0)
-				{
-					for (int i = 0; i < firstIdx; i++) 
-                    { 
-                        xList.Add(xs[i]);
-                        yList.Add(firstVal);
-                    }
-					for (int i = firstIdx; i < n20; i++)
-                    { 
-                        if (!double.IsNaN(ma20[i]))
-                        { 
-                            xList.Add(xs[i]); 
-                            yList.Add(ma20[i]);
-                        }
-                    }
-				}
-				var xv = xList.ToArray(); 
-                var yv = yList.ToArray();
-                if (yv.Length > 1)
+                else
                 {
-                    var brush = MA20.Foreground as SolidColorBrush;
-                    var ma20Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma20Color, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
-                }
-			}
-
-            var ma30 = snap.MA30 ?? Tool.ComputeSimpleMovingAverage(closes, 30);
-            if (MA30.IsChecked == true)
-            {
-                var xList = new List<double>();
-                var yList = new List<double>();
-                int n30 = Math.Min(xs.Length, ma30.Length);
-                int firstIdx = -1;
-                double firstVal = double.NaN;
-                for (int i = 0; i < n30; i++)
-                {
-                    if (!double.IsNaN(ma30[i])) 
-                    {
-                        firstIdx = i; 
-                        firstVal = ma30[i]; 
-                        break;
-                    }
-                }
-                if (firstIdx >= 0)
-                {
-                    for (int i = 0; i < firstIdx; i++) 
-                    { 
-                        xList.Add(xs[i]); 
-                        yList.Add(firstVal);
-                    }
-                    for (int i = firstIdx; i < n30; i++) 
-                    { 
-                        if (!double.IsNaN(ma30[i])) 
-                        { 
-                            xList.Add(xs[i]); 
-                            yList.Add(ma30[i]);
-                        }
-                    }
-                }
-                var xv = xList.ToArray(); 
-                var yv = yList.ToArray();
-                if (yv.Length > 1)
-                {
-                    var brush = MA30.Foreground as SolidColorBrush;
-                    var ma30Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, ma30Color, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
+                    // fallback
+                    WpfPlotPrice.Plot.AxisAuto();
                 }
             }
-
-            var ma60 = snap.MA60 ?? Tool.ComputeSimpleMovingAverage(closes, 60);
-            if (MA60.IsChecked == true)
-            {
-                var xList = new List<double>();
-                var yList = new List<double>();
-                int n60 = Math.Min(xs.Length, ma60.Length);
-                int firstIdx = -1;
-                double firstVal = double.NaN;
-                for (int i = 0; i < n60; i++)
-                {
-                    if (!double.IsNaN(ma60[i])) 
-                    { 
-                        firstIdx = i;
-                        firstVal = ma60[i]; 
-                        break;
-                    }
-                }
-                if (firstIdx >= 0)
-                {
-                    for (int i = 0; i < firstIdx; i++) 
-                    { 
-                        xList.Add(xs[i]); 
-                        yList.Add(firstVal);
-                    }
-                    for (int i = firstIdx; i < n60; i++) 
-                    { 
-                        if (!double.IsNaN(ma60[i])) 
-                        { 
-                            xList.Add(xs[i]); 
-                            yList.Add(ma60[i]);
-                        }
-                    }
-                }
-                var xv = xList.ToArray(); 
-                var yv = yList.ToArray();
-                if (yv.Length > 1)
-                {
-                    var brush = MA60.Foreground as SolidColorBrush;
-                    var ma60Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma60Color, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
-                }
-            }
-
-            // Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值
-            double yHigh = new[]
-			{
-				highs.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-				ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-				ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-				ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-				ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max()
-			}.Max();
-			double yLow = new[]
-			{
-				lows.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Min(),
-				ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
-				ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
-				ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
-				ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
-				ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min()
-			}.Min();
-            if (yHigh > yLow)
-            {
-                double margin = (yHigh - yLow) * 0.06; // 6% margin
-                WpfPlotPrice.Plot.SetAxisLimitsY(yLow - margin, yHigh + margin);
-            }
-            else
-            {
-                // fallback
-                WpfPlotPrice.Plot.AxisAuto();
-            }
+            
 
             // --- 2) 绘制成交量到下方 WpfPlotVolume 并对齐 X 轴 ---
             WpfPlotVolume.Plot.Clear();
@@ -1811,6 +1591,263 @@ namespace StockTickerExtension
             WpfPlotPrice.Render();
             WpfPlotVolume.Render();
         }
+
+        private double[] DrawMA5Line(StockSnapshot snap)
+        {
+            int count = snap.Prices.Length;
+            var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
+            var closes = snap.Prices;
+
+            var ma5 = snap.MA5 ?? Tool.ComputeSimpleMovingAverage(closes, 5);
+            // 过滤 NaN，仅绘制有效点，避免 ScottPlot 因 NaN 抛异常
+            if (MA5.IsChecked == true)
+            {
+                var xList = new List<double>();
+                var yList = new List<double>();
+                int n5 = Math.Min(xs.Length, ma5.Length);
+                int firstIdx = -1;
+                double firstVal = double.NaN;
+                for (int i = 0; i < n5; i++)
+                {
+                    if (!double.IsNaN(ma5[i]))
+                    {
+                        firstIdx = i;
+                        firstVal = ma5[i];
+                        break;
+                    }
+                }
+                if (firstIdx >= 0)
+                {
+                    for (int i = 0; i < firstIdx; i++)
+                    {
+                        xList.Add(xs[i]);
+                        yList.Add(firstVal);
+                    }
+                    for (int i = firstIdx; i < n5; i++)
+                    {
+                        if (!double.IsNaN(ma5[i]))
+                        {
+                            xList.Add(xs[i]);
+                            yList.Add(ma5[i]);
+                        }
+                    }
+                }
+                var xv = xList.ToArray();
+                var yv = yList.ToArray();
+                if (yv.Length > 1)
+                {
+                    var brush = MA5.Foreground as SolidColorBrush;
+                    var ma5Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma5Color, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
+                }
+            }
+            return ma5;
+        }
+
+        private double[] DrawMA10Line(StockSnapshot snap)
+        {
+            int count = snap.Prices.Length;
+            var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
+            var closes = snap.Prices;
+
+            var ma10 = snap.MA10 ?? Tool.ComputeSimpleMovingAverage(closes, 10);
+            if (MA10.IsChecked == true)
+            {
+                var xList = new List<double>();
+                var yList = new List<double>();
+                int n10 = Math.Min(xs.Length, ma10.Length);
+                int firstIdx = -1;
+                double firstVal = double.NaN;
+                for (int i = 0; i < n10; i++)
+                {
+                    if (!double.IsNaN(ma10[i]))
+                    {
+                        firstIdx = i;
+                        firstVal = ma10[i];
+                        break;
+                    }
+                }
+                if (firstIdx >= 0)
+                {
+                    for (int i = 0; i < firstIdx; i++)
+                    {
+                        xList.Add(xs[i]);
+                        yList.Add(firstVal);
+                    }
+                    for (int i = firstIdx; i < n10; i++)
+                    {
+                        if (!double.IsNaN(ma10[i]))
+                        {
+                            xList.Add(xs[i]);
+                            yList.Add(ma10[i]);
+                        }
+                    }
+                }
+                var xv = xList.ToArray();
+                var yv = yList.ToArray();
+                if (yv.Length > 1)
+                {
+                    var brush = MA10.Foreground as SolidColorBrush;
+                    var ma10Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma10Color, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
+                }
+            }
+            return ma10;
+        }
+
+        private double[] DrawMA20Line(StockSnapshot snap)
+        {
+            int count = snap.Prices.Length;
+            var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
+            var closes = snap.Prices;
+
+            var ma20 = snap.MA20 ?? Tool.ComputeSimpleMovingAverage(closes, 20);
+            if (MA20.IsChecked == true)
+            {
+                var xList = new List<double>();
+                var yList = new List<double>();
+                int n20 = Math.Min(xs.Length, ma20.Length);
+                int firstIdx = -1;
+                double firstVal = double.NaN;
+                for (int i = 0; i < n20; i++)
+                {
+                    if (!double.IsNaN(ma20[i]))
+                    {
+                        firstIdx = i;
+                        firstVal = ma20[i];
+                        break;
+                    }
+                }
+                if (firstIdx >= 0)
+                {
+                    for (int i = 0; i < firstIdx; i++)
+                    {
+                        xList.Add(xs[i]);
+                        yList.Add(firstVal);
+                    }
+                    for (int i = firstIdx; i < n20; i++)
+                    {
+                        if (!double.IsNaN(ma20[i]))
+                        {
+                            xList.Add(xs[i]);
+                            yList.Add(ma20[i]);
+                        }
+                    }
+                }
+                var xv = xList.ToArray();
+                var yv = yList.ToArray();
+                if (yv.Length > 1)
+                {
+                    var brush = MA20.Foreground as SolidColorBrush;
+                    var ma20Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma20Color, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
+                }
+            }
+            return ma20;
+        }
+
+        private double[] DrawMA30Line(StockSnapshot snap)
+        {
+            int count = snap.Prices.Length;
+            var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
+            var closes = snap.Prices;
+
+            var ma30 = snap.MA30 ?? Tool.ComputeSimpleMovingAverage(closes, 30);
+            if (MA30.IsChecked == true)
+            {
+                var xList = new List<double>();
+                var yList = new List<double>();
+                int n30 = Math.Min(xs.Length, ma30.Length);
+                int firstIdx = -1;
+                double firstVal = double.NaN;
+                for (int i = 0; i < n30; i++)
+                {
+                    if (!double.IsNaN(ma30[i]))
+                    {
+                        firstIdx = i;
+                        firstVal = ma30[i];
+                        break;
+                    }
+                }
+                if (firstIdx >= 0)
+                {
+                    for (int i = 0; i < firstIdx; i++)
+                    {
+                        xList.Add(xs[i]);
+                        yList.Add(firstVal);
+                    }
+                    for (int i = firstIdx; i < n30; i++)
+                    {
+                        if (!double.IsNaN(ma30[i]))
+                        {
+                            xList.Add(xs[i]);
+                            yList.Add(ma30[i]);
+                        }
+                    }
+                }
+                var xv = xList.ToArray();
+                var yv = yList.ToArray();
+                if (yv.Length > 1)
+                {
+                    var brush = MA30.Foreground as SolidColorBrush;
+                    var ma30Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, ma30Color, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
+                }
+            }
+            return ma30;
+        }
+
+        private double[] DrawMA60Line(StockSnapshot snap)
+        {
+            int count = snap.Prices.Length;
+            var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
+            var closes = snap.Prices;
+
+            var ma60 = snap.MA60 ?? Tool.ComputeSimpleMovingAverage(closes, 60);
+            if (MA60.IsChecked == true)
+            {
+                var xList = new List<double>();
+                var yList = new List<double>();
+                int n60 = Math.Min(xs.Length, ma60.Length);
+                int firstIdx = -1;
+                double firstVal = double.NaN;
+                for (int i = 0; i < n60; i++)
+                {
+                    if (!double.IsNaN(ma60[i]))
+                    {
+                        firstIdx = i;
+                        firstVal = ma60[i];
+                        break;
+                    }
+                }
+                if (firstIdx >= 0)
+                {
+                    for (int i = 0; i < firstIdx; i++)
+                    {
+                        xList.Add(xs[i]);
+                        yList.Add(firstVal);
+                    }
+                    for (int i = firstIdx; i < n60; i++)
+                    {
+                        if (!double.IsNaN(ma60[i]))
+                        {
+                            xList.Add(xs[i]);
+                            yList.Add(ma60[i]);
+                        }
+                    }
+                }
+                var xv = xList.ToArray();
+                var yv = yList.ToArray();
+                if (yv.Length > 1)
+                {
+                    var brush = MA60.Foreground as SolidColorBrush;
+                    var ma60Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
+                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma60Color, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
+                }
+            }
+            return ma60;
+        }
+
 
         private void UpdateProfitDisplay()
         {
@@ -2041,6 +2078,11 @@ namespace StockTickerExtension
                 {
                     if (GetCurrentPeriod() == PeriodType.DailyK || GetCurrentPeriod() == PeriodType.WeeklyK)
                         time = _currentSnapshot.KLineDates[index].ToString("yyyy-MM-dd");
+                    else if((int)GetCurrentPeriod() >= (int)PeriodType.Minute1 && (int)GetCurrentPeriod() <= (int)PeriodType.Minute60)
+                    {
+                        time = _currentSnapshot.KLineDates[index].ToString("MM/dd HH:mm");
+
+                    }
                     else
                         time = _currentSnapshot.KLineDates[index].ToString("yyyy-MM");
 
@@ -2177,7 +2219,7 @@ namespace StockTickerExtension
             {
                 bool isGolden = Tool.HasKDJGoldenCross(snap.Prices, snap.HighPrices, snap.LowPrices);
                 bool isDeath = Tool.HasKDJDeadCross(snap.Prices, snap.HighPrices, snap.LowPrices);
-                var t = DateTime.Now.ToString("hh:mm:ss");
+                var t = DateTime.Now.ToString("HH:mm:ss");
 
                 if (isGolden)
                 {
