@@ -284,6 +284,21 @@ namespace StockTickerExtension
                 case PeriodType.YearlyK:
                     kType = "105";
                     break;
+                case PeriodType.Minute1:
+                    kType = "1";
+                    break;
+                case PeriodType.Minute5:
+                    kType = "5";
+                    break;
+                case PeriodType.Minute15:
+                    kType = "15";
+                    break;
+                case PeriodType.Minute30:
+                    kType = "30";
+                    break;
+                case PeriodType.Minute60:
+                    kType = "60";
+                    break;
                 default:
                     kType = "101";
                     break;
@@ -342,7 +357,7 @@ namespace StockTickerExtension
                 start = start.AddDays(-1);
                 DateTime end = isDst ? date.AddDays(1).AddHours(4) : date.AddDays(1).AddHours(5);
                 end = end.AddDays(-1);
-
+                                                             
                 var t = start;
                 while (t <= end)
                 {
@@ -375,6 +390,11 @@ namespace StockTickerExtension
             // 根据不同的K线周期生成时间标签
             switch (period)
             {
+                case PeriodType.Minute1:
+                case PeriodType.Minute5:
+                case PeriodType.Minute15:
+                case PeriodType.Minute30:
+                case PeriodType.Minute60:
                 case PeriodType.DailyK:
                     for (int i = dateCount - 1; i >= 0; i -= labelInterval)
                     {
@@ -386,10 +406,17 @@ namespace StockTickerExtension
                         }
                         else
                         {
-                            date = currentDate.AddDays(-(dateCount - 1 - i));
+                            if (period == PeriodType.DailyK)
+                            {
+                                date = currentDate.AddDays(-(dateCount - 1 - i));
+                            }
+                            else
+                            {
+                                date = currentDate.AddMinutes(-(dateCount - 1 - i));
+                            }
                         }
                         ticks.Add(i);
-                        labels.Add(date.ToString("MM/dd"));
+                        labels.Add(date.ToString(period == PeriodType.DailyK ? "MM/dd" : "HH:mm"));
                     }
                     break;
                 case PeriodType.WeeklyK:
@@ -479,7 +506,6 @@ namespace StockTickerExtension
             double luminance = 0.2126 * (double)r + 0.7152 * (double)g + 0.0722 * (double)b;
             return luminance < 140;  // 阈值可按实际视觉调整
         }
-
         static public List<MACDItem> CalcMacd(List<double> closes, int shortPeriod = 12, int longPeriod = 26, int signalPeriod = 9)
         {
             List<MACDItem> result = new List<MACDItem>();
@@ -518,6 +544,51 @@ namespace StockTickerExtension
                 });
             }
             return result;
+        }
+
+        static public (string, string) GetRequestInterval(PeriodType period, DateTime currentDate)
+        {
+            string endStr = currentDate.ToString("yyyyMMdd");
+
+            int count = 150;
+            string beginStr;
+            switch(period)
+            {
+                case PeriodType.DailyK:
+                    beginStr = currentDate.AddDays(-count).ToString("yyyyMMdd"); // 多取 40 天以支持 MA 引导
+                    break;
+                case PeriodType.WeeklyK:
+                    beginStr = currentDate.AddDays(-count * 7).ToString("yyyyMMdd");
+                    break;
+                case PeriodType.MonthlyK:
+                    beginStr = currentDate.AddMonths(-count * 4).ToString("yyyyMMdd");
+                    break;
+                case PeriodType.QuarterlyK:
+                    beginStr = currentDate.AddMonths(-count * 10).ToString("yyyyMMdd");
+                    break;
+                case PeriodType.YearlyK:
+                    beginStr = currentDate.AddYears(-10).ToString("yyyyMMdd");
+                    break;
+                case PeriodType.Minute1:
+                    beginStr = currentDate.AddDays(-1).ToString("yyyyMMdd");
+                    break;
+                case PeriodType.Minute5:
+                    beginStr = currentDate.AddDays(-5).ToString("yyyyMMdd");
+                    break;
+                case PeriodType.Minute15:
+                    beginStr = currentDate.AddDays(-15).ToString("yyyyMMdd");
+                    break;
+                case PeriodType.Minute30:
+                    beginStr = currentDate.AddDays(-30).ToString("yyyyMMdd");
+                    break;
+                case PeriodType.Minute60:
+                    beginStr = currentDate.AddDays(-60).ToString("yyyyMMdd");
+                    break;                
+                default:
+                    beginStr = currentDate.AddDays(-count).ToString("yyyyMMdd");
+                    break;
+            }
+            return (beginStr, endStr);
         }
 
     }
@@ -585,7 +656,12 @@ namespace StockTickerExtension
 		MonthlyK,
 		QuarterlyK,
 		YearlyK,
-	};
+        Minute1,
+        Minute5,
+        Minute15,
+        Minute30,
+        Minute60
+    };
 
 	public enum StockMarket : int
 	{
