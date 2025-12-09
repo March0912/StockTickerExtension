@@ -104,14 +104,14 @@ namespace StockTickerExtension
                 MA60.IsEnabled = false;
                 MA60.Content = "MA60: --";
 
-                WpfPlotPrice.Plot.Clear();
-				WpfPlotPrice.Height = 240;
-                WpfPlotPrice.Configuration.ScrollWheelZoom = false;
-                WpfPlotPrice.Configuration.LeftClickDragPan = false;
+                WpfPlotChart1.Plot.Clear();
+                WpfPlotChart1.Height = 240;
+                WpfPlotChart1.Configuration.ScrollWheelZoom = false;
+                WpfPlotChart1.Configuration.LeftClickDragPan = false;
 
-                WpfPlotVolume.Visibility = Visibility.Visible;
-                WpfPlotVolume.Configuration.ScrollWheelZoom = false;
-                WpfPlotVolume.Configuration.LeftClickDragPan = false;
+                WpfPlotChart2.Visibility = Visibility.Visible;
+                WpfPlotChart2.Configuration.ScrollWheelZoom = false;
+                WpfPlotChart2.Configuration.LeftClickDragPan = false;
             }
             else
             {
@@ -128,14 +128,14 @@ namespace StockTickerExtension
                 MA30.IsChecked = _configManager.Config.MA30Checked;
                 MA60.IsChecked = _configManager.Config.MA60Checked;
 
-				WpfPlotPrice.Plot.Clear();
-				WpfPlotPrice.Height = 400;
-				WpfPlotPrice.Configuration.ScrollWheelZoom = false;
-                WpfPlotPrice.Configuration.LeftClickDragPan = false;
+                WpfPlotChart1.Plot.Clear();
+                WpfPlotChart1.Height = 400;
+                WpfPlotChart1.Configuration.ScrollWheelZoom = false;
+                WpfPlotChart1.Configuration.LeftClickDragPan = false;
 
-                WpfPlotVolume.Configuration.ScrollWheelZoom = false;
-                WpfPlotVolume.Configuration.LeftClickDragPan = false;
-                WpfPlotVolume.Visibility = Visibility.Visible;
+                WpfPlotChart2.Configuration.ScrollWheelZoom = false;
+                WpfPlotChart2.Configuration.LeftClickDragPan = false;
+                WpfPlotChart2.Visibility = Visibility.Visible;
             }
             StartMonitoring();
         }
@@ -187,7 +187,7 @@ namespace StockTickerExtension
                         {
                             CodeTextBox.SelectedIndex = idx;
                             StockMarket sm = StockMarket.StockA;
-                            if(CodeTextBox.Text.EndsWith(StockMarket.StockHK.ToString()))
+                            if (CodeTextBox.Text.EndsWith(StockMarket.StockHK.ToString()))
                             {
                                 sm = StockMarket.StockHK;
                             }
@@ -217,16 +217,16 @@ namespace StockTickerExtension
                     }
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Logger.Error($"CodeTextBox_KeyUp: {ex.Message}");
             }
         }
 
-		private void CodeTextBox_DropDownClosed(object sender, EventArgs e)
+        private void CodeTextBox_DropDownClosed(object sender, EventArgs e)
         {
-			var comboBox = sender as ComboBox;
-			var text = comboBox.SelectedItem?.ToString();
+            var comboBox = sender as ComboBox;
+            var text = comboBox.SelectedItem?.ToString();
             if (!string.IsNullOrEmpty(text))
             {
                 if (_currentSnapshot != null && text.StartsWith(_currentSnapshot.Code))
@@ -247,11 +247,11 @@ namespace StockTickerExtension
                     sm = StockMarket.StockA;
                 }
                 UpdateStockType(sm);
-                StartMonitoring(text);                
+                StartMonitoring(text);
             }
-		}
-                
-		private void AddBtn_Click(object sender, System.Windows.RoutedEventArgs e)
+        }
+
+        private void AddBtn_Click(object sender, System.Windows.RoutedEventArgs e)
         {
             var text = CodeTextBox.Text?.Trim();
             if (!string.IsNullOrEmpty(text))
@@ -322,7 +322,7 @@ namespace StockTickerExtension
             InitPriceChat();
             InitUIColor();
 
-            if(CodeTextBox.Items.Count == 0)
+            if (CodeTextBox.Items.Count == 0)
             {
                 UpdateStatus("Please enter or choose a stock code.", System.Windows.Media.Brushes.Red);
             }
@@ -384,27 +384,27 @@ namespace StockTickerExtension
 
         private void InitPriceChat()
         {
-            WpfPlotPrice.Configuration.ScrollWheelZoom = false;
-            WpfPlotPrice.Configuration.LeftClickDragPan = false;
-            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
+            WpfPlotChart1.Configuration.ScrollWheelZoom = false;
+            WpfPlotChart1.Configuration.LeftClickDragPan = false;
+            WpfPlotChart1.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
 
-            WpfPlotPrice.MouseMove += OnWpfMouseMove;
-            WpfPlotPrice.MouseLeave += OnWpfMouseLeave;
-            WpfPlotPrice.RightClicked -= WpfPlotPrice.DefaultRightClickEvent;
+            WpfPlotChart1.MouseMove += OnWpfMouseMove;
+            WpfPlotChart1.MouseLeave += OnWpfMouseLeave;
+            WpfPlotChart1.RightClicked -= WpfPlotChart1.DefaultRightClickEvent;
 
             // 初始化十字线（只创建一次）
             if (_crosshair == null)
             {
-                _crosshair = WpfPlotPrice.Plot.AddCrosshair(50, 0);
+                _crosshair = WpfPlotChart1.Plot.AddCrosshair(50, 0);
                 _crosshair.IsVisible = false;
                 _crosshair.LineColor = System.Drawing.Color.Red;
                 _crosshair.LineWidth = 1;
                 _crosshair.Color = System.Drawing.Color.Red;
             }
 
-            WpfPlotVolume.Configuration.ScrollWheelZoom = false;
-            WpfPlotVolume.Configuration.LeftClickDragPan = false;
-            WpfPlotVolume.RightClicked -= WpfPlotVolume.DefaultRightClickEvent;
+            WpfPlotChart2.Configuration.ScrollWheelZoom = false;
+            WpfPlotChart2.Configuration.LeftClickDragPan = false;
+            WpfPlotChart2.RightClicked -= WpfPlotChart2.DefaultRightClickEvent;
 
             // 关键时间点
             var dateStr = _currentDate.ToString("yyyy-MM-dd ");
@@ -423,9 +423,9 @@ namespace StockTickerExtension
             }
             // 设置 X 轴刻度
             if (ticks.Count > 0)
-                WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+                WpfPlotChart1.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
-            WpfPlotVolume.Visibility = Visibility.Visible;
+            WpfPlotChart2.Visibility = Visibility.Visible;
             Logger.Info("InitPriceChat finished");
         }
 
@@ -435,7 +435,7 @@ namespace StockTickerExtension
             this.Loaded += (s, e) =>
             {
                 ApplyThemeToAllControls(this);
-                VSColorTheme.ThemeChanged += _ => Dispatcher.Invoke(() => 
+                VSColorTheme.ThemeChanged += _ => Dispatcher.Invoke(() =>
                 {
                     RefreshTheme();
                     ApplyThemeToAllControls(this);
@@ -536,7 +536,7 @@ namespace StockTickerExtension
                     wpfPlot.Plot.Style(figureBackground: bgColor0,
                                         dataBackground: bgColor0,
                                         grid: bdColor1,
-                                        tick: fgColor1,                                        
+                                        tick: fgColor1,
                                         axisLabel: fgColor0,
                                         titleLabel: fgColor0);
                     wpfPlot.Refresh();
@@ -560,8 +560,8 @@ namespace StockTickerExtension
             }
             else if (obj is TextBlock tb)
             {
-				tb.Background = bgBrush;
-				tb.Foreground = fgBrush;
+                tb.Background = bgBrush;
+                tb.Foreground = fgBrush;
             }
             else
             {
@@ -595,14 +595,14 @@ namespace StockTickerExtension
         {
             if (obj is DatePickerTextBox dptb)
             {
-                 dptb.Foreground = fgBrush;
-                 dptb.Background = bgBrush;
+                dptb.Foreground = fgBrush;
+                dptb.Background = bgBrush;
             }
-//             else if (obj is Shape sp)
-//             {
-//                 sp.Fill = bgBrush;
-//             }
-//             else
+            //             else if (obj is Shape sp)
+            //             {
+            //                 sp.Fill = bgBrush;
+            //             }
+            //             else
             {
                 int count = VisualTreeHelper.GetChildrenCount(obj);
                 for (int i = 0; i < count; i++)
@@ -639,7 +639,7 @@ namespace StockTickerExtension
             });
         }
 
-		private bool CheckTradingTime()
+        private bool CheckTradingTime()
         {
             var codeName = CodeTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(codeName))
@@ -652,7 +652,7 @@ namespace StockTickerExtension
             if (!Tool.IsTradingTime(_stockType, DateTime.Now))
             {
                 // 收盘后（15:00之后）允许启动，并显示当日完整分时数据
-                UpdateStatus("Currently outside trading hours", System.Windows.Media.Brushes.Red); 
+                UpdateStatus("Currently outside trading hours", System.Windows.Media.Brushes.Red);
                 return false;
             }
             return true;
@@ -670,7 +670,7 @@ namespace StockTickerExtension
                         return CodeTextBox.Items.IndexOf(item);
                     }
                 }
-                if(item.ToString() == text)
+                if (item.ToString() == text)
                 {
                     return CodeTextBox.Items.IndexOf(item);
                 }
@@ -678,12 +678,12 @@ namespace StockTickerExtension
             return -1;
         }
 
-		private void StartMonitoring(string text = "")
+        private void StartMonitoring(string text = "")
         {
             PeriodType period = (PeriodType)PeriodComboBox.SelectedIndex;
             if (!CheckTradingTime())
             {
-                if(period == PeriodType.Intraday && DateTime.Now.TimeOfDay < new TimeSpan(9, 30, 0))
+                if (period == PeriodType.Intraday && DateTime.Now.TimeOfDay < new TimeSpan(9, 30, 0))
                 {
                     return;
                 }
@@ -692,9 +692,9 @@ namespace StockTickerExtension
             }
 
             var codeName = string.IsNullOrEmpty(text) ? CodeTextBox.Text?.Trim() : text;
-            if(codeName == null)
+            if (codeName == null)
             {
-                return; 
+                return;
             }
 
             _monitoring = true;
@@ -717,7 +717,7 @@ namespace StockTickerExtension
             if (!_uiTimer.IsEnabled) _uiTimer.Start();
 
             UpdateStatus($"{codeName} Conitoring started", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
-           
+
             StartBtn.IsEnabled = false;
             StartBtn.FontWeight = FontWeights.Normal;
 
@@ -758,7 +758,7 @@ namespace StockTickerExtension
             OtherStocksInfo.Text = "";
 
             UpdateStatus($"{_currentSnapshot?.Code} {_currentSnapshot?.Name} Conitoring stopped", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
-            if (_uiTimer.IsEnabled) 
+            if (_uiTimer.IsEnabled)
                 _uiTimer.Stop();
 
             Logger.Info("Monitoring stoped!");
@@ -815,10 +815,10 @@ namespace StockTickerExtension
             Logger.Info("Monitoring loop stopped!");
         }
 
-		private async Task<StockSnapshot> FetchKLinesSnapshot_Async(string code, PeriodType period)
+        private async Task<StockSnapshot> FetchKLinesSnapshot_Async(string code, PeriodType period)
         {
-            if(period == PeriodType.Intraday)
-               return await FetchTrendsSnapshot_Async(code);
+            if (period == PeriodType.Intraday)
+                return await FetchTrendsSnapshot_Async(code);
 
             var secid = Tool.GetSecId(_stockType, code);
             if (secid == null) return null;
@@ -847,8 +847,8 @@ namespace StockTickerExtension
             var klines = dataObj["klines"].ToObject<string[]>();
             if (klines.Length == 0) return null;
 
-			var name = dataObj["name"]?.ToString();
-			int count = klines.Length;
+            var name = dataObj["name"]?.ToString();
+            int count = klines.Length;
             var prices = new double[count];
             var avgPrices = new double[count];
             var vols = new double[count];
@@ -915,17 +915,17 @@ namespace StockTickerExtension
 
             double lastPrice = prices.Last();
             changePercents[0] = 0;
-            for (int i=1; i<count; i++)
+            for (int i = 1; i < count; i++)
             {
-                changePercents[i] = (prices[i] - prices[i-1]) / prices[i-1] * 100;
+                changePercents[i] = (prices[i] - prices[i - 1]) / prices[i - 1] * 100;
             }
 
-			// 计算严格窗口的全序列均线
-			double[] ma5full = Tool.ComputeExactWindowSMA(prices, 5);
-			double[] ma10full = Tool.ComputeExactWindowSMA(prices, 10);
-			double[] ma20full = Tool.ComputeExactWindowSMA(prices, 20);
-			double[] ma30full = Tool.ComputeExactWindowSMA(prices, 30);
-			double[] ma60full = Tool.ComputeExactWindowSMA(prices, 60);
+            // 计算严格窗口的全序列均线
+            double[] ma5full = Tool.ComputeExactWindowSMA(prices, 5);
+            double[] ma10full = Tool.ComputeExactWindowSMA(prices, 10);
+            double[] ma20full = Tool.ComputeExactWindowSMA(prices, 20);
+            double[] ma30full = Tool.ComputeExactWindowSMA(prices, 30);
+            double[] ma60full = Tool.ComputeExactWindowSMA(prices, 60);
 
             return new StockSnapshot
             {
@@ -941,12 +941,12 @@ namespace StockTickerExtension
                 SellVolumes = sellVols,
                 KLineDates = kLineDates,
                 CurrentPrice = lastPrice,
-				ChangePercents = changePercents,
-				MA5 = ma5full,
-				MA10 = ma10full,
-				MA20 = ma20full,
-				MA30 = ma30full,
-				MA60 = ma60full
+                ChangePercents = changePercents,
+                MA5 = ma5full,
+                MA10 = ma10full,
+                MA20 = ma20full,
+                MA30 = ma30full,
+                MA60 = ma60full
             };
         }
 
@@ -971,7 +971,7 @@ namespace StockTickerExtension
                     return null;
 
                 var dataObj = jobj["data"];
-                if(dataObj.Type == JTokenType.Null)
+                if (dataObj.Type == JTokenType.Null)
                     return null;
 
                 var name = dataObj["name"].ToObject<string>();
@@ -1093,7 +1093,7 @@ namespace StockTickerExtension
                         UpdateStatus($"Monitoring {snap.Code} {snap.Name}", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
                     }
 
-                    UpdatePriceChart(snap);
+                    UpdateChart(snap);
                     UpdateMAText(snap);
                     UpdatePricesText(snap);
                     UpdateProfitDisplay();
@@ -1112,7 +1112,7 @@ namespace StockTickerExtension
                     }
                 }
             }
-            catch(System.Exception ex)
+            catch (System.Exception ex)
             {
                 Logger.Error($"UiTimer_Tick exception: {ex}");
             }
@@ -1130,7 +1130,7 @@ namespace StockTickerExtension
                 {
                     var txt = bgts._stockList[bgts._curIndex].ToString();
                     txt = txt.Substring(0, txt.IndexOf(' '));
-                    if(txt == _currentSnapshot?.Code)
+                    if (txt == _currentSnapshot?.Code)
                     {
                         continue;
                     }
@@ -1164,7 +1164,7 @@ namespace StockTickerExtension
         private void StartMonitorKDJ(PeriodType period, string code)
         {
             return;
-            
+
             if (period == PeriodType.Intraday)
             {
                 _kdjCts = new CancellationTokenSource();
@@ -1192,192 +1192,304 @@ namespace StockTickerExtension
             }
         }
 
-        private void UpdatePriceChart(StockSnapshot snap)
+        private void UpdateChart(StockSnapshot snap)
         {
             if (!_monitoring)
                 return;
-
-            if(GetCurrentPeriod() == PeriodType.Intraday)
+            try
             {
-                DrawIntradayChart(snap);
+                DrawChart1(snap);
+                DrawChart2(snap);
             }
-            else
+            catch (Exception ex)
             {
-                DrawKLineChart(snap);
+                Logger.Error($"UpdateChart exception: {ex}");
             }
         }
 
-        private void DrawIntradayChart(StockSnapshot snap)
+        private void DrawChart1(StockSnapshot snap)
         {
-            if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0 || snap.Volumes == null || snap.Volumes.Length == 0)
-                return;
-
-            var crosshair = _crosshair; // 缓存旧的十字线
-            WpfPlotPrice.Plot.Clear();
-            WpfPlotVolume.Plot.Clear();
-
-            List<double> safePrices = new List<double>();
-            List<double> safeAvgPrices = new List<double>();
-
-            for (int i = 0; i < snap.Prices.Length; i++)
+            var period = GetCurrentPeriod();
+            if (period == PeriodType.Intraday)
             {
-                if (!double.IsNaN(snap.Prices[i])) safePrices.Add(snap.Prices[i]);
-                if (!double.IsNaN(snap.AvgPrices[i])) safeAvgPrices.Add(snap.AvgPrices[i]);
-            }
-            if (safePrices.Count == 0)
-                return;
+                if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0 || snap.Volumes == null || snap.Volumes.Length == 0)
+                    return;
 
-            // 固定x轴范围为完整的交易时间范围，而不是根据数据点数量动态调整
-            WpfPlotPrice.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
+                var crosshair = _crosshair; // 缓存旧的十字线
+                WpfPlotChart1.Plot.Clear();
 
-            // 使用完整的交易时间索引，而不是只使用有效数据点的索引
-            var xs = Enumerable.Range(0, _tradingMinutes.Count).Select(i => (double)i).ToArray();
-
-            // 创建完整的价格数组，包含NaN值用于没有数据的时间点
-            var fullPrices = new double[_tradingMinutes.Count];
-            var fullAvgPrices = new double[_tradingMinutes.Count];
-            
-            // 将有效价格数据填充到对应的时间索引位置
-            for (int i = 0; i < snap.Prices.Length && i < _tradingMinutes.Count; i++)
-            {
-                fullPrices[i] = snap.Prices[i];
-                fullAvgPrices[i] = snap.AvgPrices[i];
-            }
-
-            // 价格曲线 - 只绘制有效的数据点
-            var validPriceIndices = new List<double>();
-            var validPrices = new List<double>();
-            var validAvgPrices = new List<double>();
-            
-            for (int i = 0; i < _tradingMinutes.Count; i++)
-            {
-                if (!double.IsNaN(fullPrices[i]))
+                // 设置X轴
+                var dateStr = _currentDate.ToString("yyyy-MM-dd ");
+                string[] labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
+                if (_stockType == StockMarket.StockA)
+                    labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
+                else if (_stockType == StockMarket.StockHK)
+                    labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00", dateStr + "15:30", dateStr + "16:00" };
+                else
                 {
-                    validPriceIndices.Add(i);
-                    validPrices.Add(fullPrices[i]);
-                    validAvgPrices.Add(double.IsNaN(fullAvgPrices[i]) ? fullPrices[i] : fullAvgPrices[i]);
-                }
-            }
-
-            if (validPrices.Count > 0)
-            {
-                WpfPlotPrice.Plot.AddScatter(validPriceIndices.ToArray(), validPrices.ToArray(), color: System.Drawing.Color.FromArgb(31, 119, 180), lineWidth: 2.0f, markerSize: 2.2f);
-                WpfPlotPrice.Plot.AddScatter(validPriceIndices.ToArray(), validAvgPrices.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 2.0f, markerSize: 2.2f);
-            }
-
-            // 创建完整的成交量数组，初始化为0
-            var fullBuyVolumes = new double[_tradingMinutes.Count];
-            var fullSellVolumes = new double[_tradingMinutes.Count];
-
-            // 成交量（右Y轴）
-            if (snap.BuyVolumes != null && snap.SellVolumes != null)
-            {
-                // 将有效成交量数据填充到对应的时间索引位置
-                for (int i = 0; i < snap.BuyVolumes.Length && i < _tradingMinutes.Count; i++)
-                {
-                    // 确保不包含NaN值，将NaN替换为0
-                    fullBuyVolumes[i] = double.IsNaN(snap.BuyVolumes[i]) ? 0 : snap.BuyVolumes[i];
-                    fullSellVolumes[i] = double.IsNaN(snap.SellVolumes[i]) ? 0 : snap.SellVolumes[i];
+                    var dateStr0 = _currentDate.AddDays(-1).ToString("yyyy-MM-dd ");
+                    labelTimes = new[] { dateStr0 + "21:30", dateStr0 + "22:00", dateStr0 + "22:30", dateStr0 + "23:00", dateStr0 + "23:30", dateStr + "00:00", dateStr + "00:30", dateStr + "01:00", dateStr + "01:30", dateStr + "02:00", dateStr + "02:30", dateStr + "03:00", dateStr + "03:30", dateStr + "04:00" };
                 }
 
-                var barBuy = WpfPlotPrice.Plot.AddBar(fullBuyVolumes, xs);
-                barBuy.FillColor = System.Drawing.Color.FromArgb(100, 255, 0, 0);
-                barBuy.YAxisIndex = 1; // 使用右Y轴
-                barBuy.BarWidth = 0.5; // 设置固定柱状图宽度
-                barBuy.BorderLineWidth = 0; // 去掉边框
+                var ticks = new List<double>();
+                var labels = new List<string>();
+                foreach (var t in labelTimes)
+                {
+                    int idx = _tradingMinutes.IndexOf(t);
+                    if (idx >= 0)
+                    {
+                        ticks.Add(idx);
+                        labels.Add(t.Split(' ')[1]);
+                    }
+                }
+                WpfPlotChart1.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
-                var barSell = WpfPlotPrice.Plot.AddBar(fullSellVolumes, xs);
-                barSell.FillColor = System.Drawing.Color.FromArgb(200, 0, 255, 0);
-                barSell.YAxisIndex = 1;
-                barSell.BarWidth = 0.5; // 设置固定柱状图宽度
-                barSell.BorderLineWidth = 0; // 去掉边框
+                WpfPlotChart1.Plot.YLabel("Price");
+                WpfPlotChart1.Plot.YAxis2.Label("Volume (Lots)");
+
+                // 设置右轴显示
+                WpfPlotChart1.Plot.YAxis2.Ticks(true);
+                WpfPlotChart1.Plot.YAxis2.Color(System.Drawing.Color.Gray);
+
+                // 自动缩放
+                WpfPlotChart1.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
+
+                List<double> safePrices = new List<double>();
+                List<double> safeAvgPrices = new List<double>();
+
+                for (int i = 0; i < snap.Prices.Length; i++)
+                {
+                    if (!double.IsNaN(snap.Prices[i])) safePrices.Add(snap.Prices[i]);
+                    if (!double.IsNaN(snap.AvgPrices[i])) safeAvgPrices.Add(snap.AvgPrices[i]);
+                }
+                if (safePrices.Count == 0)
+                    return;
+
+                // 固定x轴范围为完整的交易时间范围，而不是根据数据点数量动态调整
+                WpfPlotChart1.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
+
+                // 创建完整的价格数组，包含NaN值用于没有数据的时间点
+                var fullPrices = new double[_tradingMinutes.Count];
+                var fullAvgPrices = new double[_tradingMinutes.Count];
+
+                // 将有效价格数据填充到对应的时间索引位置
+                for (int i = 0; i < snap.Prices.Length && i < _tradingMinutes.Count; i++)
+                {
+                    fullPrices[i] = snap.Prices[i];
+                    fullAvgPrices[i] = snap.AvgPrices[i];
+                }
+
+                // 价格曲线 - 只绘制有效的数据点
+                var validPriceIndices = new List<double>();
+                var validPrices = new List<double>();
+                var validAvgPrices = new List<double>();
+
+                for (int i = 0; i < _tradingMinutes.Count; i++)
+                {
+                    if (!double.IsNaN(fullPrices[i]))
+                    {
+                        validPriceIndices.Add(i);
+                        validPrices.Add(fullPrices[i]);
+                        validAvgPrices.Add(double.IsNaN(fullAvgPrices[i]) ? fullPrices[i] : fullAvgPrices[i]);
+                    }
+                }
+
+                if (validPrices.Count > 0)
+                {
+                    WpfPlotChart1.Plot.AddScatter(validPriceIndices.ToArray(), validPrices.ToArray(), color: System.Drawing.Color.FromArgb(31, 119, 180), lineWidth: 2.0f, markerSize: 2.2f);
+                    WpfPlotChart1.Plot.AddScatter(validPriceIndices.ToArray(), validAvgPrices.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 2.0f, markerSize: 2.2f);
+                }
+
+                // 使用完整的交易时间索引，而不是只使用有效数据点的索引
+                var xs = Enumerable.Range(0, _tradingMinutes.Count).Select(i => (double)i).ToArray();
+
+                // 创建完整的成交量数组，初始化为0
+                var fullBuyVolumes = new double[_tradingMinutes.Count];
+                var fullSellVolumes = new double[_tradingMinutes.Count];
+
+                // 成交量（右Y轴）
+                if (snap.BuyVolumes != null && snap.SellVolumes != null)
+                {
+                    // 将有效成交量数据填充到对应的时间索引位置
+                    for (int i = 0; i < snap.BuyVolumes.Length && i < _tradingMinutes.Count; i++)
+                    {
+                        // 确保不包含NaN值，将NaN替换为0
+                        fullBuyVolumes[i] = double.IsNaN(snap.BuyVolumes[i]) ? 0 : snap.BuyVolumes[i];
+                        fullSellVolumes[i] = double.IsNaN(snap.SellVolumes[i]) ? 0 : snap.SellVolumes[i];
+                    }
+
+                    var barBuy = WpfPlotChart1.Plot.AddBar(fullBuyVolumes, xs);
+                    barBuy.FillColor = System.Drawing.Color.Red;
+                    barBuy.YAxisIndex = 1; // 使用右Y轴
+                    barBuy.BarWidth = 0.5; // 设置固定柱状图宽度
+                    barBuy.BorderLineWidth = 0; // 去掉边框
+
+                    var barSell = WpfPlotChart1.Plot.AddBar(fullSellVolumes, xs);
+                    barSell.FillColor = System.Drawing.Color.Green;
+                    barSell.YAxisIndex = 1;
+                    barSell.BarWidth = 0.5; // 设置固定柱状图宽度
+                    barSell.BorderLineWidth = 0; // 去掉边框
+                }
+
+                // ------------------ 价格轴（左Y轴）留20%空间 ------------------
+                double maxPrice = 0, minPrice = 0;
+                if (validPrices.Count > 0)
+                {
+                    maxPrice = Math.Max(validPrices.Max(), validAvgPrices.Max());
+                    minPrice = Math.Min(validPrices.Min(), validAvgPrices.Min());
+                }
+
+                // 上下各留出10%的空间（总共扩大20%）
+                double priceRange = maxPrice - minPrice;
+                WpfPlotChart1.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1 + 0.01, yAxisIndex: 0);
+                WpfPlotChart1.Plot.YAxis.TickLabelFormat("F2", false);
+
+                // 调整右侧成交量轴范围
+                double maxVolume = Math.Max(fullBuyVolumes.DefaultIfEmpty(0).Max(),
+                                            fullSellVolumes.DefaultIfEmpty(0).Max());
+                WpfPlotChart1.Plot.SetAxisLimitsY(0, maxVolume * 1.3 + 0.01, yAxisIndex: 1); // 上限提高20%
+
+                if (crosshair != null)
+                {
+                    _crosshair = WpfPlotChart1.Plot.AddCrosshair(crosshair.X, crosshair.Y);
+                    _crosshair.LineColor = crosshair.LineColor;
+                    _crosshair.LineWidth = crosshair.LineWidth;
+                    _crosshair.IsVisible = crosshair.IsVisible;
+                }
+
+                WpfPlotChart1.Render();
             }
-
-            // 设置坐标轴
-            var dateStr = _currentDate.ToString("yyyy-MM-dd ");
-            string[] labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
-            if (_stockType == StockMarket.StockA)
-                labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
-            else if(_stockType == StockMarket.StockHK)
-                labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00", dateStr + "15:30", dateStr + "16:00" };
             else
             {
-                var dateStr0 = _currentDate.AddDays(-1).ToString("yyyy-MM-dd ");
-                labelTimes = new[] { dateStr0 + "21:30", dateStr0 + "22:00", dateStr0 + "22:30", dateStr0 + "23:00", dateStr0 + "23:30", dateStr + "00:00", dateStr + "00:30", dateStr + "01:00", dateStr + "01:30", dateStr + "02:00", dateStr + "02:30", dateStr + "03:00", dateStr + "03:30", dateStr + "04:00" };
-            }
+                if (!_monitoring || snap == null || snap.Prices == null || snap.Prices.Length == 0 || snap.KLineDates == null || snap.KLineDates.Length == 0)
+                    return;
 
-            var ticks = new List<double>();
-            var labels = new List<string>();
-            foreach (var t in labelTimes)
-            {
-                int idx = _tradingMinutes.IndexOf(t);
-                if (idx >= 0)
+                var crosshair = _crosshair;
+
+                WpfPlotChart1.Plot.Clear();
+                WpfPlotChart1.Plot.YAxis2.Ticks(false);
+                WpfPlotChart1.Plot.YAxis2.Label("");
+
+                int count = snap.Prices.Length;
+                var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
+
+                // --- 1) 绘制 K 线（使用 ScottPlot 的 Candlesticks） ---
+                var opens = snap.OpenPrice ?? Enumerable.Repeat(double.NaN, count).ToArray();
+                var closes = snap.Prices;
+                var highs = snap.HighPrices ?? Enumerable.Repeat(double.NaN, count).ToArray();
+                var lows = snap.LowPrices ?? Enumerable.Repeat(double.NaN, count).ToArray();
+
+                // 添加蜡烛图
+                var ohlcs = new List<ScottPlot.OHLC>();
+                for (int i = 0; i < count; i++)
                 {
-                    ticks.Add(idx);
-                    labels.Add(t.Split(' ')[1]);
+                    if (!double.IsNaN(opens[i]) && !double.IsNaN(highs[i]) &&
+                        !double.IsNaN(lows[i]) && !double.IsNaN(closes[i]))
+                    {
+                        ohlcs.Add(new ScottPlot.OHLC(opens[i], highs[i], lows[i], closes[i], xs[i], 1));
+                    }
                 }
+
+                // AddCandlesticks(opens, highs, lows, closes, xs)
+                var candles = WpfPlotChart1.Plot.AddCandlesticks(ohlcs.ToArray());
+                candles.ColorUp = System.Drawing.Color.Red;
+                candles.ColorDown = System.Drawing.Color.Green;
+
+                // X 轴对齐：使每个 candle 在整数位置（0..count-1）居中
+                double xMin = -0.5;
+                double xMax = count - 0.5;
+                WpfPlotChart1.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
+
+                // 设置 X 轴刻度 - 使用时间轴标签
+                var (ticks, labels) = Tool.GenerateTimeAxisLabels(GetCurrentPeriod(), snap.KLineDates, GetCurrentDate());
+                WpfPlotChart1.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+                WpfPlotChart1.Plot.YLabel("Price");
+
+                DrawAVGLines(snap);
+
+                if (crosshair != null)
+                {
+                    _crosshair = WpfPlotChart1.Plot.AddCrosshair(crosshair.X, crosshair.Y);
+                    _crosshair.LineColor = crosshair.LineColor;
+                    _crosshair.LineWidth = crosshair.LineWidth;
+                    _crosshair.IsVisible = crosshair.IsVisible;
+                }
+
+                // 最后渲染
+                WpfPlotChart1.Render();
             }
-            if (ticks.Count > 0)
+        }
+
+        private void DrawChart2(StockSnapshot snap)
+        {
+            var period = GetCurrentPeriod();
+            if (period == PeriodType.Intraday)
             {
-                WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
-            }
+                if (!_monitoring || snap.Prices == null || snap.Prices.Length == 0 || snap.Volumes == null || snap.Volumes.Length == 0)
+                    return;
 
-            // 坐标轴名称
-            WpfPlotPrice.Plot.YLabel("Price");
-            WpfPlotPrice.Plot.YAxis2.Label("Volume (Lots)");
+                WpfPlotChart2.Plot.Clear();
 
-            // 设置右轴显示
-            WpfPlotPrice.Plot.YAxis2.Ticks(true);
-            WpfPlotPrice.Plot.YAxis2.Color(System.Drawing.Color.Gray);
-
-            // 自动缩放
-            WpfPlotPrice.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
-
-            // ------------------ 价格轴（左Y轴）留20%空间 ------------------
-            double maxPrice = 0, minPrice = 0;
-            if (validPrices.Count > 0)
-            {
-                maxPrice = Math.Max(validPrices.Max(), validAvgPrices.Max());
-                minPrice = Math.Min(validPrices.Min(), validAvgPrices.Min());
-            }
-
-            // 上下各留出10%的空间（总共扩大20%）
-            double priceRange = maxPrice - minPrice;
-            WpfPlotPrice.Plot.SetAxisLimitsY(minPrice - priceRange * 0.1, maxPrice + priceRange * 0.1 + 0.01, yAxisIndex: 0);
-            WpfPlotPrice.Plot.YAxis.TickLabelFormat("F2", false);
-
-            if (validPrices.Count > 0)
-            {
                 // 绘制MACD曲线
-                WpfPlotVolume.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
-                WpfPlotVolume.Plot.YLabel("MACD");
-                WpfPlotVolume.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
+                WpfPlotChart2.Plot.SetAxisLimits(xMin: 0, xMax: _tradingMinutes.Count - 1);
+                WpfPlotChart2.Plot.YLabel("MACD");
+                WpfPlotChart2.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
+
+                // 设置X轴
+                var dateStr = _currentDate.ToString("yyyy-MM-dd ");
+                string[] labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
+                if (_stockType == StockMarket.StockA)
+                    labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00" };
+                else if (_stockType == StockMarket.StockHK)
+                    labelTimes = new[] { dateStr + "09:30", dateStr + "10:00", dateStr + "10:30", dateStr + "11:00", dateStr + "11:30", dateStr + "13:30", dateStr + "14:00", dateStr + "14:30", dateStr + "15:00", dateStr + "15:30", dateStr + "16:00" };
+                else
+                {
+                    var dateStr0 = _currentDate.AddDays(-1).ToString("yyyy-MM-dd ");
+                    labelTimes = new[] { dateStr0 + "21:30", dateStr0 + "22:00", dateStr0 + "22:30", dateStr0 + "23:00", dateStr0 + "23:30", dateStr + "00:00", dateStr + "00:30", dateStr + "01:00", dateStr + "01:30", dateStr + "02:00", dateStr + "02:30", dateStr + "03:00", dateStr + "03:30", dateStr + "04:00" };
+                }
+
+                var ticks = new List<double>();
+                var labels = new List<string>();
+                foreach (var t in labelTimes)
+                {
+                    int idx = _tradingMinutes.IndexOf(t);
+                    if (idx >= 0)
+                    {
+                        ticks.Add(idx);
+                        labels.Add(t.Split(' ')[1]);
+                    }
+                }
+                WpfPlotChart2.Plot.XTicks(ticks.ToArray(), labels.ToArray());
 
                 var macdItems = Tool.CalcMacd(snap.Prices.ToList());
                 var difList = macdItems.Select(item => item.Dif).ToList();
                 var deaList = macdItems.Select(item => item.Dea).ToList();
                 var macdList = macdItems.Select(item => item.Macd).ToList();
 
-                WpfPlotVolume.Plot.AddScatter(validPriceIndices.ToArray(), difList.ToArray(), color: _isBlackTheme ? System.Drawing.Color.White : System.Drawing.Color.Black, lineWidth: 1.8f, markerSize: 0.0f);
-                WpfPlotVolume.Plot.AddScatter(validPriceIndices.ToArray(), deaList.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 1.8f, markerSize: 0.0f);
+                // 价格曲线 - 只绘制有效的数据点
+                var validPriceIndices = new List<double>();
+                for (int i = 0; i < _tradingMinutes.Count; i++)
+                {
+                    if (!double.IsNaN(snap.Prices[i]))
+                    {
+                        validPriceIndices.Add(i);
+                    }
+                }
+                WpfPlotChart2.Plot.AddScatter(validPriceIndices.ToArray(), difList.ToArray(), color: _isBlackTheme ? System.Drawing.Color.White : System.Drawing.Color.Black, lineWidth: 1.8f, markerSize: 0.0f);
+                WpfPlotChart2.Plot.AddScatter(validPriceIndices.ToArray(), deaList.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 1.8f, markerSize: 0.0f);
 
                 double maxMacd = difList.Max();
                 double minMacd = difList.Min();
                 double macdRange = maxMacd - minMacd;
-                WpfPlotVolume.Plot.SetAxisLimitsY(minMacd - macdRange * 0.1, maxMacd + macdRange * 0.1 + 0.01, yAxisIndex: 0);
-                WpfPlotVolume.Plot.YAxis.TickLabelFormat("F2", false);
-                WpfPlotVolume.Plot.YAxis2.Label("   ");
-                WpfPlotVolume.Plot.YAxis2.TickLabelFormat("F2", false);
-                WpfPlotVolume.Plot.SetAxisLimitsY(minMacd - macdRange * 0.1, maxMacd + macdRange * 0.1 + 0.01, yAxisIndex: 1);
+                WpfPlotChart2.Plot.SetAxisLimitsY(minMacd - macdRange * 0.1, maxMacd + macdRange * 0.1 + 0.01, yAxisIndex: 0);
+                WpfPlotChart2.Plot.YAxis.TickLabelFormat("F2", false);
+                WpfPlotChart2.Plot.YAxis2.Label("   ");
+                WpfPlotChart2.Plot.YAxis2.TickLabelFormat("F2", false);
+                WpfPlotChart2.Plot.SetAxisLimitsY(minMacd - macdRange * 0.1, maxMacd + macdRange * 0.1 + 0.01, yAxisIndex: 1);
 
                 // 设置右轴显示，仅仅是为了使上下对齐一点点
-                WpfPlotVolume.Plot.YAxis2.Ticks(true);
-                WpfPlotVolume.Plot.YAxis2.Color(System.Drawing.Color.Gray);
-
-                if (ticks.Count > 0)
-                {
-                    WpfPlotVolume.Plot.XTicks(ticks.ToArray(), labels.ToArray());
-                }
+                WpfPlotChart2.Plot.YAxis2.Ticks(true);
+                WpfPlotChart2.Plot.YAxis2.Color(System.Drawing.Color.Gray);
 
                 var fullBuyMacds = new double[macdList.Count];
                 var fullSellMacds = new double[macdList.Count];
@@ -1396,91 +1508,158 @@ namespace StockTickerExtension
                             fullSellMacds[i] = macdList[i];
                         }
                     }
+
+                    var xs = Enumerable.Range(0, macdList.Count).Select(i => (double)i).ToArray();
+
+                    var buyMacdBar = WpfPlotChart2.Plot.AddBar(fullBuyMacds, xs);
+                    buyMacdBar.FillColor = System.Drawing.Color.Red;
+                    buyMacdBar.FillColorNegative = System.Drawing.Color.Red;
+                    buyMacdBar.YAxisIndex = 0;
+                    buyMacdBar.BarWidth = 0.5;
+                    buyMacdBar.BorderLineWidth = 0;
+
+                    var sellMacdBar = WpfPlotChart2.Plot.AddBar(fullSellMacds, xs);
+                    sellMacdBar.FillColor = System.Drawing.Color.Green;
+                    sellMacdBar.FillColorNegative = System.Drawing.Color.Green;
+                    sellMacdBar.YAxisIndex = 0;
+                    sellMacdBar.BarWidth = 0.5;
+                    sellMacdBar.BorderLineWidth = 0;
+                }
+                WpfPlotChart2.Render();
+            }
+            else if (period >= PeriodType.Minute1)
+            {
+                if (!_monitoring || snap == null || snap.Prices == null || snap.Prices.Length == 0 || snap.KLineDates == null)
+                    return;
+
+                WpfPlotChart2.Plot.Clear();
+
+                int count = snap.Prices.Length;
+
+                // 绘制MACD曲线
+                WpfPlotChart2.Plot.SetAxisLimits(xMin: 0, xMax: count - 1);
+                WpfPlotChart2.Plot.YLabel("MACD");
+                WpfPlotChart2.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
+
+                var (ticks, labels) = Tool.GenerateTimeAxisLabels(period, snap.KLineDates, GetCurrentDate());
+                WpfPlotChart2.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+
+                var macdItems = Tool.CalcMacd(snap.Prices.ToList());
+                var difList = macdItems.Select(item => item.Dif).ToList();
+                var deaList = macdItems.Select(item => item.Dea).ToList();
+                var macdList = macdItems.Select(item => item.Macd).ToList();
+
+                // 价格曲线 - 只绘制有效的数据点
+                var validPriceIndices = new List<double>();
+                for (int i = 0; i < count; i++)
+                {
+                    if (!double.IsNaN(snap.Prices[i]))
+                    {
+                        validPriceIndices.Add(i);
+                    }
+                }
+                WpfPlotChart2.Plot.AddScatter(validPriceIndices.ToArray(), difList.ToArray(), color: _isBlackTheme ? System.Drawing.Color.White : System.Drawing.Color.Black, lineWidth: 1.8f, markerSize: 0.0f);
+                WpfPlotChart2.Plot.AddScatter(validPriceIndices.ToArray(), deaList.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 1.8f, markerSize: 0.0f);
+
+                double maxMacd = difList.Max();
+                double minMacd = difList.Min();
+                double macdRange = maxMacd - minMacd;
+                WpfPlotChart2.Plot.SetAxisLimitsY(minMacd - macdRange * 0.1, maxMacd + macdRange * 0.1 + 0.01, yAxisIndex: 0);
+                WpfPlotChart2.Plot.YAxis.TickLabelFormat("F2", false);
+                WpfPlotChart2.Plot.YAxis2.Ticks(false);
+
+                var fullBuyMacds = new double[macdList.Count];
+                var fullSellMacds = new double[macdList.Count];
+                // 将有效成交量数据填充到对应的时间索引位置
+                for (int i = 0; i < macdList.Count; i++)
+                {
+                    if (macdList[i] >= 0)
+                    {
+                        fullBuyMacds[i] = macdList[i];
+                        fullSellMacds[i] = 0;
+                    }
+                    else
+                    {
+                        fullBuyMacds[i] = 0;
+                        fullSellMacds[i] = macdList[i];
+                    }
                 }
 
-                var xs2 = Enumerable.Range(0, macdList.Count).Select(i => (double)i).ToArray();
+                var xs = Enumerable.Range(0, macdList.Count).Select(i => (double)i).ToArray();
 
-                var buyMacdBar = WpfPlotVolume.Plot.AddBar(fullBuyMacds, xs2);
+                var buyMacdBar = WpfPlotChart2.Plot.AddBar(fullBuyMacds, xs);
                 buyMacdBar.FillColor = System.Drawing.Color.Red;
                 buyMacdBar.FillColorNegative = System.Drawing.Color.Red;
                 buyMacdBar.YAxisIndex = 0;
                 buyMacdBar.BarWidth = 0.5;
                 buyMacdBar.BorderLineWidth = 0;
 
-                var sellMacdBar = WpfPlotVolume.Plot.AddBar(fullSellMacds, xs2);
-                sellMacdBar.FillColor = System.Drawing.Color.FromArgb(200, 0, 255, 0);
-                sellMacdBar.FillColorNegative = System.Drawing.Color.FromArgb(200, 0, 255, 0);
+                var sellMacdBar = WpfPlotChart2.Plot.AddBar(fullSellMacds, xs);
+                sellMacdBar.FillColor = System.Drawing.Color.Green;
+                sellMacdBar.FillColorNegative = System.Drawing.Color.Green;
                 sellMacdBar.YAxisIndex = 0;
                 sellMacdBar.BarWidth = 0.5;
                 sellMacdBar.BorderLineWidth = 0;
 
-                WpfPlotVolume.Refresh();
+                WpfPlotChart2.Render();
             }
-
-            // 调整右侧成交量轴范围
-            double maxVolume = Math.Max(fullBuyVolumes.DefaultIfEmpty(0).Max(),
-                                        fullSellVolumes.DefaultIfEmpty(0).Max());
-            WpfPlotPrice.Plot.SetAxisLimitsY(0, maxVolume * 1.3 + 0.01, yAxisIndex: 1); // 上限提高20%
-
-            if (crosshair != null)
+            else
             {
-                _crosshair = WpfPlotPrice.Plot.AddCrosshair(crosshair.X, crosshair.Y);
-                _crosshair.LineColor = crosshair.LineColor;
-                _crosshair.LineWidth = crosshair.LineWidth;
-                _crosshair.IsVisible = crosshair.IsVisible;
-            }
+                if (!_monitoring || snap == null || snap.Prices == null || snap.Prices.Length == 0 || snap.KLineDates == null || snap.KLineDates.Length == 0)
+                    return;
 
-            WpfPlotPrice.Refresh();
+                WpfPlotChart2.Plot.AxisAuto(horizontalMargin: 0, verticalMargin: 0);
+
+                var (ticks, labels) = Tool.GenerateTimeAxisLabels(period, snap.KLineDates, GetCurrentDate());
+                WpfPlotChart2.Plot.XTicks(ticks.ToArray(), labels.ToArray());
+
+                int count = snap.Prices.Length;
+
+                double xMin = -0.5;
+                double xMax = count - 0.5;
+
+                // --- 2) 绘制成交量到下方 WpfPlotVolume 并对齐 X 轴 ---
+                WpfPlotChart2.Plot.Clear();
+                WpfPlotChart2.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
+                WpfPlotChart2.Visibility = Visibility.Visible;
+                WpfPlotChart2.Plot.YAxis.TickLabelFormat("", false);
+                WpfPlotChart2.Plot.YAxis2.TickLabelFormat("", false);
+                WpfPlotChart2.Plot.YAxis2.Ticks(false);
+                WpfPlotChart2.Plot.YAxis2.Label("");
+
+                double[] volsScaled = snap.Volumes?.Select(v => v / 100).ToArray() ?? new double[count];
+                // 为成交量设置颜色：用买/卖分开绘制（若有），否则按涨跌绘色
+                if (snap.BuyVolumes != null && snap.SellVolumes != null)
+                {
+                    var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
+
+                    // 使用 buy/sell 绘制两组柱
+                    var buyScaled = snap.BuyVolumes.Select(v => v / 100).ToArray();
+                    var buyBar = WpfPlotChart2.Plot.AddBar(buyScaled, xs);
+                    buyBar.FillColor = System.Drawing.Color.Red;
+                    buyBar.BarWidth = 0.5;
+                    buyBar.BorderLineWidth = 0;
+
+                    var sellScaled = snap.SellVolumes.Select(v => v / 100).ToArray();
+                    var sellBar = WpfPlotChart2.Plot.AddBar(sellScaled, xs);
+                    sellBar.FillColor = System.Drawing.Color.Green;
+                    sellBar.BarWidth = 0.5;
+                    sellBar.BorderLineWidth = 0;
+                }
+
+                // 给成交量 Y 轴加一点上边距
+                double maxVol = volsScaled.DefaultIfEmpty(0).Max();
+                WpfPlotChart2.Plot.SetAxisLimitsY(0, Math.Max(1e-6, maxVol * 1.2)); // 提高 20%                                                                                
+                WpfPlotChart2.Plot.YLabel("Volume (Lots)");
+                WpfPlotChart2.Render();
+            }
         }
 
-        private void DrawKLineChart(StockSnapshot snap)
+        private void DrawAVGLines(StockSnapshot snap)
         {
-            if (!_monitoring || snap == null || snap.Prices == null || snap.Prices.Length == 0 || snap.KLineDates == null || snap.KLineDates.Length == 0)
-                return;
-
-            var crosshair = _crosshair; // 缓存旧的十字线
-            // 清理两个图
-            WpfPlotPrice.Plot.Clear();
-            WpfPlotPrice.Plot.YAxis2.Ticks(false);
-            WpfPlotPrice.Plot.YAxis2.Label("");
-
             int count = snap.Prices.Length;
-            var xs = Enumerable.Range(0, count).Select(i => (double)i).ToArray();
-
-			// --- 1) 绘制 K 线（使用 ScottPlot 的 Candlesticks） ---
-            var opens = snap.OpenPrice ?? Enumerable.Repeat(double.NaN, count).ToArray();
-            var closes = snap.Prices;
             var highs = snap.HighPrices ?? Enumerable.Repeat(double.NaN, count).ToArray();
             var lows = snap.LowPrices ?? Enumerable.Repeat(double.NaN, count).ToArray();
-
-            // 添加蜡烛图
-            var ohlcs = new List<ScottPlot.OHLC>();
-            for (int i = 0; i < count; i++)
-            {
-                if (!double.IsNaN(opens[i]) && !double.IsNaN(highs[i]) &&
-                    !double.IsNaN(lows[i]) && !double.IsNaN(closes[i]))
-                {
-                    ohlcs.Add(new ScottPlot.OHLC(opens[i], highs[i], lows[i], closes[i], xs[i], 1));
-                }
-            }
-
-            // AddCandlesticks(opens, highs, lows, closes, xs)
-            var candles = WpfPlotPrice.Plot.AddCandlesticks(ohlcs.ToArray());
-            // 美化：涨红 跌绿，和宽度
-            candles.ColorUp = System.Drawing.Color.Red;
-            candles.ColorDown = System.Drawing.Color.Green;
-//          candles.CandleWidth = 0.6f; // 0..1 相对宽度
-
-            // X 轴对齐：使每个 candle 在整数位置（0..count-1）居中
-            double xMin = -0.5;
-            double xMax = count - 0.5;
-            WpfPlotPrice.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
-
-            // 设置 X 轴刻度 - 使用时间轴标签
-            var (ticks, labels) = Tool.GenerateTimeAxisLabels(GetCurrentPeriod(), snap.KLineDates, GetCurrentDate());
-            WpfPlotPrice.Plot.XTicks(ticks.ToArray(), labels.ToArray());
-
-			WpfPlotPrice.Plot.YLabel("Price");
 
             {
                 var ma5 = DrawMA5Line(snap);
@@ -1492,104 +1671,34 @@ namespace StockTickerExtension
                 // Y 轴：给上下增加小边距，避免实体触到边；同时包含 MA 值
                 double yHigh = new[]
                 {
-                    highs.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-                    ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-                    ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-                    ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-                    ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
-                    ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max()
-                }.Max();
+                        highs.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                        ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                        ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                        ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                        ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max(),
+                        ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Max()
+                    }.Max();
                 double yLow = new[]
                 {
-                    lows.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Min(),
-                    ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
-                    ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
-                    ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
-                    ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
-                    ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min()
-                }.Min();
-                
+                        lows.Where(v => !double.IsNaN(v)).DefaultIfEmpty(0).Min(),
+                        ma5.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+                        ma10.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+                        ma20.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+                        ma30.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min(),
+                        ma60.Where(v => !double.IsNaN(v)).DefaultIfEmpty(double.PositiveInfinity).Min()
+                    }.Min();
+
                 if (yHigh > yLow)
                 {
                     double margin = (yHigh - yLow) * 0.06; // 6% margin
-                    WpfPlotPrice.Plot.SetAxisLimitsY(yLow - margin, yHigh + margin);
+                    WpfPlotChart1.Plot.SetAxisLimitsY(yLow - margin, yHigh + margin);
                 }
                 else
                 {
                     // fallback
-                    WpfPlotPrice.Plot.AxisAuto();
+                    WpfPlotChart1.Plot.AxisAuto();
                 }
             }
-            
-
-            // --- 2) 绘制成交量到下方 WpfPlotVolume 并对齐 X 轴 ---
-            WpfPlotVolume.Plot.Clear();
-            WpfPlotVolume.Plot.SetAxisLimits(xMin: xMin, xMax: xMax);
-            WpfPlotVolume.Visibility = Visibility.Visible;
-            WpfPlotVolume.Plot.YAxis.TickLabelFormat("", false);
-            WpfPlotVolume.Plot.YAxis2.TickLabelFormat("", false);
-            WpfPlotVolume.Plot.YAxis2.Ticks(false);
-            WpfPlotVolume.Plot.YAxis2.Label("");
-
-            double[] volsScaled = snap.Volumes?.Select(v => v/100).ToArray() ?? new double[count];
-            // 为成交量设置颜色：用买/卖分开绘制（若有），否则按涨跌绘色
-            if (snap.BuyVolumes != null && snap.SellVolumes != null)
-            {
-                // 使用 buy/sell 绘制两组柱
-                var buyScaled = snap.BuyVolumes.Select(v => v/100).ToArray();
-                var sellScaled = snap.SellVolumes.Select(v => v / 100).ToArray();
-
-                // 使用 buy/sell 绘制两组柱
-                var buyBar = WpfPlotVolume.Plot.AddBar(buyScaled, xs);
-                buyBar.FillColor = System.Drawing.Color.Red;
-                buyBar.BarWidth = 0.5;
-                buyBar.BorderLineWidth = 0;
-
-                // 使用 buy/sell 绘制两组柱
-                var sellBar = WpfPlotVolume.Plot.AddBar(sellScaled, xs);
-                sellBar.FillColor = System.Drawing.Color.Green;
-                sellBar.BarWidth = 0.5;
-                sellBar.BorderLineWidth = 0;
-            }
-            else
-            {
-                // 将成交量转换为“手”（如果你的数据是股数），这里除以100；若已经是手则把 /100 去掉
-                if (volsScaled.Length != count)
-                {
-                    var tmp = new double[count];
-                    for (int i = 0; i < count && i < volsScaled.Length; i++)
-                    {
-                        tmp[i] = volsScaled[i];
-                    }
-                    volsScaled = tmp;
-                }
-                // 单组成交量，颜色依据当天涨跌（或全部灰色）
-                var bars = WpfPlotVolume.Plot.AddBar(volsScaled, xs);
-                bars.FillColor = System.Drawing.Color.Gray;
-                bars.BarWidth = 0.5;
-                bars.BorderLineWidth = 0;
-            }
-
-            // 为成交量图设置相同的时间轴标签
-            if (ticks.Count > 0)
-                WpfPlotVolume.Plot.XTicks(ticks.ToArray(), labels.ToArray());
-
-            // 给成交量 Y 轴加一点上边距
-            double maxVol = volsScaled.DefaultIfEmpty(0).Max();
-            WpfPlotVolume.Plot.SetAxisLimitsY(0, Math.Max(1e-6, maxVol * 1.2)); // 提高 20%                                                                                
-            WpfPlotVolume.Plot.YLabel("Volume (Lots)");
-
-            if (crosshair != null)
-            {
-                _crosshair = WpfPlotPrice.Plot.AddCrosshair(crosshair.X, crosshair.Y);
-                _crosshair.LineColor = crosshair.LineColor;
-                _crosshair.LineWidth = crosshair.LineWidth;
-                _crosshair.IsVisible = crosshair.IsVisible;
-            }
-
-            // 最后渲染
-            WpfPlotPrice.Render();
-            WpfPlotVolume.Render();
         }
 
         private double[] DrawMA5Line(StockSnapshot snap)
@@ -1638,7 +1747,7 @@ namespace StockTickerExtension
                 {
                     var brush = MA5.Foreground as SolidColorBrush;
                     var ma5Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma5Color, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
+                    WpfPlotChart1.Plot.AddScatter(xv, yv, color: ma5Color, lineWidth: 1.0f, markerSize: 0f, label: "MA5");
                 }
             }
             return ma5;
@@ -1689,7 +1798,7 @@ namespace StockTickerExtension
                 {
                     var brush = MA10.Foreground as SolidColorBrush;
                     var ma10Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma10Color, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
+                    WpfPlotChart1.Plot.AddScatter(xv, yv, color: ma10Color, lineWidth: 1.0f, markerSize: 0f, label: "MA10");
                 }
             }
             return ma10;
@@ -1740,7 +1849,7 @@ namespace StockTickerExtension
                 {
                     var brush = MA20.Foreground as SolidColorBrush;
                     var ma20Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma20Color, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
+                    WpfPlotChart1.Plot.AddScatter(xv, yv, color: ma20Color, lineWidth: 1.0f, markerSize: 0f, label: "MA20");
                 }
             }
             return ma20;
@@ -1791,7 +1900,7 @@ namespace StockTickerExtension
                 {
                     var brush = MA30.Foreground as SolidColorBrush;
                     var ma30Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, ma30Color, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
+                    WpfPlotChart1.Plot.AddScatter(xv, yv, ma30Color, lineWidth: 1.0f, markerSize: 0f, label: "MA30");
                 }
             }
             return ma30;
@@ -1842,19 +1951,18 @@ namespace StockTickerExtension
                 {
                     var brush = MA60.Foreground as SolidColorBrush;
                     var ma60Color = System.Drawing.Color.FromArgb(brush.Color.A, brush.Color.R, brush.Color.G, brush.Color.B);
-                    WpfPlotPrice.Plot.AddScatter(xv, yv, color: ma60Color, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
+                    WpfPlotChart1.Plot.AddScatter(xv, yv, color: ma60Color, lineWidth: 1.0f, markerSize: 0f, label: "MA60");
                 }
             }
             return ma60;
         }
-
 
         private void UpdateProfitDisplay()
         {
             if (!double.TryParse(SharesBox.Text, out double shares)) return;
             if (!double.TryParse(CostBox.Text, out double cost)) return;
             if (!double.TryParse(ChangePercentText.Text.TrimEnd('%'), out double change)) return;
-                        
+
             double currentPrice = double.Parse(CurrentPriceText.Text);
             double positionProfit = (currentPrice - cost) * shares;
             double todayProfit = currentPrice * change * shares / 100;
@@ -1949,13 +2057,16 @@ namespace StockTickerExtension
 
         private void UpdatePricesText(StockSnapshot snap)
         {
-            var val = snap.ChangePercents != null ? snap.ChangePercents.Last() : 0;
+            var val = snap.ChangePercents?.Last() ?? 0;
             var foreground = val > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
 
             CurrentPriceText.Text = snap.CurrentPrice.ToString("F2");
             CurrentPriceText.Foreground = foreground;
 
-            if(GetCurrentPeriod() == PeriodType.Intraday)
+            ChangePercentText.Text = val != 0 ? $"{val:F2}%" : "--%";
+            ChangePercentText.Foreground = foreground;
+
+            if (GetCurrentPeriod() == PeriodType.Intraday)
             {
                 var prices = snap.Prices.Where(p => !double.IsNaN(p)).ToArray();
                 if (prices != null && prices.Length > 0)
@@ -1967,12 +2078,10 @@ namespace StockTickerExtension
             }
             else
             {
-                OpenPriceText.Text = snap.OpenPrice.Last().ToString("F2");
-                HighestPriceText.Text = snap.HighPrices.Last().ToString("F2");
-                LowestPriceText.Text = snap.LowPrices.Last().ToString("F2");
-            }
-            ChangePercentText.Text = val != 0 ? $"{val:F2}%" : "--%";
-            ChangePercentText.Foreground = foreground;
+                OpenPriceText.Text = snap.OpenPrice?.Last().ToString("F2") ?? "";
+                HighestPriceText.Text = snap.HighPrices?.Last().ToString("F2") ?? "";
+                LowestPriceText.Text = snap.LowPrices?.Last().ToString("F2") ?? "";
+            }            
         }
 
         private void UpdateStatus(string text, System.Windows.Media.Brush color = null)
@@ -2002,38 +2111,38 @@ namespace StockTickerExtension
         private void OnKLineMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (GetCurrentPeriod() == PeriodType.Intraday) return; // 分时图不处理缩放
-            
+
             // 获取事件来源的控件
             var sourceControl = sender as ScottPlot.WpfPlot;
             if (sourceControl == null) return;
-            
+
             // 获取当前X轴范围
-            var xLimits = WpfPlotPrice.Plot.GetAxisLimits();
+            var xLimits = WpfPlotChart1.Plot.GetAxisLimits();
             double currentRange = xLimits.XMax - xLimits.XMin;
 
             // 计算鼠标位置在X轴上的比例
             System.Windows.Point mousePos = e.GetPosition(sourceControl);
             double xRatio = mousePos.X / sourceControl.ActualWidth;
             double mouseX = xLimits.XMin + xRatio * currentRange;
-            
+
             // 缩放因子
             double zoomFactor = e.Delta > 0 ? 0.8 : 1.25;
             double newRange = currentRange * zoomFactor;
-            
+
             // 限制缩放范围
             newRange = Math.Max(5, Math.Min(newRange, 1000));
-            
+
             // 计算新的X轴范围，以鼠标位置为中心
             double newXMin = mouseX - (mouseX - xLimits.XMin) * (newRange / currentRange);
             double newXMax = mouseX + (xLimits.XMax - mouseX) * (newRange / currentRange);
-            
+
             // 应用新的X轴范围到两个图表
-            WpfPlotPrice.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
-            WpfPlotVolume.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
-            
+            WpfPlotChart1.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
+            WpfPlotChart2.Plot.SetAxisLimits(xMin: newXMin, xMax: newXMax);
+
             // 重新渲染
-            WpfPlotPrice.Render();
-            WpfPlotVolume.Render();
+            WpfPlotChart1.Render();
+            WpfPlotChart2.Render();
         }
 
         private void OnWpfMouseMove(object sender, MouseEventArgs e)
@@ -2069,16 +2178,16 @@ namespace StockTickerExtension
 
                 string time = "";
                 string labelText = "";
-                if(GetCurrentPeriod() == PeriodType.Intraday)
+                if (GetCurrentPeriod() == PeriodType.Intraday)
                 {
-                   time = _tradingMinutes[index].Split(' ')[1]; // 显示HH:mm
-                   labelText = $"Price:{_currentSnapshot.Prices[index]} \r\nAvgPrice:{_currentSnapshot.AvgPrices[index]}";  
+                    time = _tradingMinutes[index].Split(' ')[1]; // 显示HH:mm
+                    labelText = $"Price:{_currentSnapshot.Prices[index]} \r\nAvgPrice:{_currentSnapshot.AvgPrices[index]}";
                 }
                 else
                 {
                     if (GetCurrentPeriod() == PeriodType.DailyK || GetCurrentPeriod() == PeriodType.WeeklyK)
                         time = _currentSnapshot.KLineDates[index].ToString("yyyy-MM-dd");
-                    else if((int)GetCurrentPeriod() >= (int)PeriodType.Minute1 && (int)GetCurrentPeriod() <= (int)PeriodType.Minute60)
+                    else if ((int)GetCurrentPeriod() >= (int)PeriodType.Minute1 && (int)GetCurrentPeriod() <= (int)PeriodType.Minute60)
                     {
                         time = _currentSnapshot.KLineDates[index].ToString("MM/dd HH:mm");
 
@@ -2092,10 +2201,10 @@ namespace StockTickerExtension
                     var high = _currentSnapshot.HighPrices[index];
                     var low = _currentSnapshot.LowPrices[index];
 
-                    labelText = $"Open: {open:F2} \r\n"+
-                                $"Close: {close:F2} \r\n"+
-                                $"High: {high:F2} \r\n"+
-                                $"Low: {low:F2} \r\n"+
+                    labelText = $"Open: {open:F2} \r\n" +
+                                $"Close: {close:F2} \r\n" +
+                                $"High: {high:F2} \r\n" +
+                                $"Low: {low:F2} \r\n" +
                                 $"Change:{val:F2}%";
 
                     OpenPriceText.Text = open.ToString("F2");
@@ -2108,15 +2217,15 @@ namespace StockTickerExtension
                 }
                 if (_infoText != null)
                 {
-                    WpfPlotPrice.Plot.Remove(_infoText);
+                    WpfPlotChart1.Plot.Remove(_infoText);
                 }
 
                 var posX = index;
-                if(posX > xTicksLen - 20)
+                if (posX > xTicksLen - 20)
                 {
                     posX = posX - 20;
                 }
-                _infoText = WpfPlotPrice.Plot.AddText(labelText, posX + 1, _crosshair.Y, color: _isBlackTheme ? System.Drawing.Color.White : System.Drawing.Color.Blue);
+                _infoText = WpfPlotChart1.Plot.AddText(labelText, posX + 1, _crosshair.Y, color: _isBlackTheme ? System.Drawing.Color.White : System.Drawing.Color.Blue);
                 _infoText.Alignment = ScottPlot.Alignment.UpperLeft;
                 _infoText.Font.Size = 14;
                 _infoText.Font.Bold = true;
@@ -2134,7 +2243,7 @@ namespace StockTickerExtension
                 _crosshair.HorizontalLine.Color = System.Drawing.Color.Red;
                 _crosshair.VerticalLine.Color = System.Drawing.Color.Red;
 
-                WpfPlotPrice.Render();
+                WpfPlotChart1.Render();
             }
         }
 
@@ -2144,10 +2253,10 @@ namespace StockTickerExtension
             {
                 if (_infoText != null)
                 {
-                    WpfPlotPrice.Plot.Remove(_infoText);
+                    WpfPlotChart1.Plot.Remove(_infoText);
                 }
                 _crosshair.IsVisible = false;
-                WpfPlotPrice.Refresh();
+                WpfPlotChart1.Refresh();
             }
 
             var sourceControl = sender as ScottPlot.WpfPlot;
@@ -2240,7 +2349,7 @@ namespace StockTickerExtension
         {
             _configManager.Config.CurrentStock = CodeTextBox.Text.Trim();
             _configManager.Config.AutoStopOnClose = AutoStopCheckBox.IsChecked == true;
-            
+
             int shares = 0;
             int.TryParse(SharesBox.Text, out shares);
             _configManager.Config.CurrentShares = shares;
@@ -2329,11 +2438,11 @@ namespace StockTickerExtension
                             continue;
                         }
                         var type = Tool.ToStockMarket(classify);
-						list.Add(new StockInfo
-						{
-							Code = item["Code"]?.ToString(),
-							Name = item["Name"]?.ToString(),
-							StockType = type
+                        list.Add(new StockInfo
+                        {
+                            Code = item["Code"]?.ToString(),
+                            Name = item["Name"]?.ToString(),
+                            StockType = type
                         });
                     }
                 }
@@ -2345,28 +2454,28 @@ namespace StockTickerExtension
         private void ShowFuzzyDialog(List<StockInfo> list)
         {
             _fuzzySearchDialog?.Close();
-			_fuzzySearchDialog = new FuzzySearchDialog(list)
-			{
-			    Owner = Window.GetWindow(this)
-			};
-
-			_fuzzySearchDialog.StockSelected += info => 
+            _fuzzySearchDialog = new FuzzySearchDialog(list)
             {
-				CodeTextBox.Text = info.Code + " " + info.Name;
-                if(info.StockType == StockMarket.StockHK || info.StockType == StockMarket.StockUS)
+                Owner = Window.GetWindow(this)
+            };
+
+            _fuzzySearchDialog.StockSelected += info =>
+            {
+                CodeTextBox.Text = info.Code + " " + info.Name;
+                if (info.StockType == StockMarket.StockHK || info.StockType == StockMarket.StockUS)
                 {
                     CodeTextBox.Text += " " + info.StockType.ToString();
                 }
                 UpdateStockType(info.StockType);
                 StartMonitoring();
-			};
+            };
 
-			var transform = CodeTextBox.TransformToAncestor(this);
-			var pos = transform.Transform(new System.Windows.Point(0, CodeTextBox.ActualHeight));
+            var transform = CodeTextBox.TransformToAncestor(this);
+            var pos = transform.Transform(new System.Windows.Point(0, CodeTextBox.ActualHeight));
             var screenPos = CodeTextBox.PointToScreen(pos);
-			_fuzzySearchDialog.Left = screenPos.X;
-			_fuzzySearchDialog.Top = screenPos.Y;
-			_fuzzySearchDialog.Show();
+            _fuzzySearchDialog.Left = screenPos.X;
+            _fuzzySearchDialog.Top = screenPos.Y;
+            _fuzzySearchDialog.Show();
         }
-	}
+    }
 }

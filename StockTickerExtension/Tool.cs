@@ -403,49 +403,52 @@ namespace StockTickerExtension
                 case PeriodType.Minute30:
                 case PeriodType.Minute60:
                 case PeriodType.DailyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
                     {
-                        // 从当前日期往前推算
-                        DateTime date = new DateTime();
-                        if (dates != null && dates.Length > 0)
+                        for (int i = 0; i < dateCount; i += labelInterval)
                         {
-                            date = dates[i];
-                        }
-                        else
-                        {
-                            if (period == PeriodType.DailyK)
+                            DateTime date;
+                            if (dates != null && dates.Length > 0)
                             {
-                                date = currentDate.AddDays(-(dateCount - 1 - i));
+                                date = dates[i];
                             }
                             else
                             {
-                                date = currentDate.AddMinutes(-(dateCount - 1 - i));
+                                if (period == PeriodType.DailyK)
+                                {
+                                    date = currentDate.AddDays(-(dateCount - 1 - i));
+                                }
+                                else
+                                {
+                                    date = currentDate.AddMinutes(-(dateCount - 1 - i));
+                                }
                             }
+                            ticks.Add(i);
+                            labels.Add(date.ToString(period == PeriodType.DailyK ? "MM/dd" : "HH:mm"));
                         }
-                        ticks.Add(i);
-                        labels.Add(date.ToString(period == PeriodType.DailyK ? "MM/dd" : "HH:mm"));
+                        break;
                     }
-                    break;
                 case PeriodType.WeeklyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
                     {
-                        DateTime date = new DateTime();
-                        if (dates != null && dates.Length > 0)
+                        for (int i = 0; i < dateCount; i += labelInterval)
                         {
-                            date = dates[i];
-                        }
-                        else
-                        {
-                            date = currentDate.AddDays(-(dateCount - 1 - i) * 7);
-                        }
-                        ticks.Add(i);
-                        labels.Add(date.ToString("MM/dd"));
+                            DateTime date;
+                            if (dates != null && dates.Length > 0)
+                            {
+                                date = dates[i];
+                            }
+                            else
+                            {
+                                date = currentDate.AddDays(-(dateCount - 1 - i) * 7);
+                            }
+                            ticks.Add(i);
+                            labels.Add(date.ToString("MM/dd"));
+                        }                       
+                        break;
                     }
-                    break;
                 case PeriodType.MonthlyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
+                    for (int i = 0; i < dateCount; i += labelInterval)
                     {
-                        DateTime date = new DateTime();
+                        DateTime date;
                         if (dates != null && dates.Length > 0)
                         {
                             date = dates[i];
@@ -459,9 +462,9 @@ namespace StockTickerExtension
                     }
                     break;
                 case PeriodType.QuarterlyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
+                    for (int i = 0; i < dateCount; i += labelInterval)
                     {
-                        DateTime date = new DateTime();
+                        DateTime date;
                         if (dates != null && dates.Length > 0)
                         {
                             date = dates[i];
@@ -475,9 +478,9 @@ namespace StockTickerExtension
                     }
                     break;
                 case PeriodType.YearlyK:
-                    for (int i = dateCount - 1; i >= 0; i -= labelInterval)
+                    for (int i = 0; i < dateCount; i += labelInterval)
                     {
-                        DateTime date = new DateTime();
+                        DateTime date;
                         if (dates != null && dates.Length > 0)
                         {
                             date = dates[i];
@@ -503,9 +506,6 @@ namespace StockTickerExtension
                     }
                     break;
             }
-
-            ticks.Reverse();
-            labels.Reverse();
             return (ticks, labels);
         }
         static public bool isDarkTheme(int r, int g, int b)

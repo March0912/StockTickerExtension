@@ -54,7 +54,7 @@
             <!-- 顶部控制面板 -->
             <StackPanel Orientation="Horizontal" Margin="3" Grid.Row="0" HorizontalAlignment="Left">
                 <TextBlock x:Name="StockCode" Text="Watch list:" VerticalAlignment="Center" Margin="6,0"/>
-                <ComboBox x:Name="CodeTextBox" Width="180" SelectedIndex="0" Margin="6,0" IsEditable="True"/>
+                <ComboBox x:Name="CodeTextBox" Width="180" SelectedIndex="0" Margin="6,0" IsEditable="True" ToolTip="Fuzzy Search"/>
                 <Button x:Name="StartBtn" Content="Start" Margin="6,0" Width="80" Cursor="Hand" />
                 <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80" Cursor="Hand"/>
                 <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
@@ -104,9 +104,9 @@
                         <!-- 副图：成交量 -->
                         <RowDefinition Height="1.5*"/>
                     </Grid.RowDefinitions>
-                    <scottplt:WpfPlot x:Name="WpfPlotPrice" Height="240" Grid.Row="0" HorizontalAlignment="Stretch" Margin="0,0,50,6"
+                    <scottplt:WpfPlot x:Name="WpfPlotChart1" Height="240" Grid.Row="0" HorizontalAlignment="Stretch" Margin="0,0,50,6"
                                    Background="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}"/>
-                    <scottplt:WpfPlot x:Name="WpfPlotVolume" Height="200" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,0,50,6"
+                    <scottplt:WpfPlot x:Name="WpfPlotChart2" Height="200" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,0,50,6"
                                    Background="{DynamicResource {x:Static vsfx:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
                  </Grid>
             </Grid>
