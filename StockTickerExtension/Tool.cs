@@ -1,9 +1,14 @@
 ﻿using Microsoft.VisualStudio.OLE.Interop;
+using Microsoft.VisualStudio.Shell;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace StockTickerExtension
 {
@@ -596,6 +601,44 @@ namespace StockTickerExtension
                     break;
             }
             return (beginStr, endStr);
+        }
+
+        static public void TakeSnapshot(UserControl control, string filePath)
+        {
+            if (control == null)
+                return;
+
+            // 必须在 UI 线程调用
+            if (!control.Dispatcher.CheckAccess())
+            {
+                control.Dispatcher.Invoke(() => TakeSnapshot(control, filePath));
+                return;
+            }
+
+            // 确保布局完成
+            control.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            control.Arrange(new Rect(control.DesiredSize));
+            control.UpdateLayout();
+
+            int width = (int)Math.Ceiling(control.ActualWidth);
+            int height = (int)Math.Ceiling(control.ActualHeight);
+
+            if (width <= 0 || height <= 0)
+                return;
+
+            var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+
+            rtb.Render(control);
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(rtb));
+
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+
+            using (var fs = File.Create(filePath))
+            {
+                encoder.Save(fs);
+            }
         }
 
     }
