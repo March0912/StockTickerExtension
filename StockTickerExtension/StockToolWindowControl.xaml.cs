@@ -1107,6 +1107,13 @@ namespace StockTickerExtension
                         if (!Tool.IsTradingTime(_stockType, DateTime.Now))
                         {
                             StopBtn_Click(null, null);
+                            //如果是下午收盘时间,则调用TakeSnapshot截图并保存
+                            //if (DateTime.Now.Hour >= 14 && DateTime.Now.Minute >= 59)
+                            //{
+                            //    string dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StockWatcher", "Snapshot");
+                            //    string fileName = System.IO.Path.Combine(dir, DateTime.Now.ToString("yyyyMMdd") + ".png");
+                            //    Tool.TakeSnapshot(this, fileName);
+                            //}
                         }
                     }
                 }
@@ -1134,7 +1141,7 @@ namespace StockTickerExtension
                         continue;
                     }
                     var info = StockInfoFetcher.FetchStockInfoAsync(txt, _stockType);
-                    if (info != null)
+                    if (info != null && info.Result != null)
                     {
                         var sign = info.Result.Change >= 0 ? "↑" : "↓";
                         var color = info.Result.Change >= 0 ? Brushes.Red : Brushes.Green;
