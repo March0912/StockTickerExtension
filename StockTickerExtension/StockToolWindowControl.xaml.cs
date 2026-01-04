@@ -530,17 +530,17 @@ namespace StockTickerExtension
                 }
                 else if (ctrl is ScottPlot.WpfPlot wpfPlot)
                 {
-                    var bdColor1 = System.Drawing.Color.FromArgb(80, bdColor0.R, bdColor0.G, bdColor0.B);
-                    var fgColor1 = System.Drawing.Color.FromArgb(150, fgColor0.R, fgColor0.G, fgColor0.B);
-                    wpfPlot.Plot.Style(figureBackground: bgColor0,
-                                        dataBackground: bgColor0,
-                                        grid: bdColor1,
-                                        tick: fgColor1,
-                                        axisLabel: fgColor0,
-                                        titleLabel: fgColor0);
-                    wpfPlot.Refresh();
+                        var bdColor1 = System.Drawing.Color.FromArgb(80, bdColor0.R, bdColor0.G, bdColor0.B);
+                        var fgColor1 = System.Drawing.Color.FromArgb(150, fgColor0.R, fgColor0.G, fgColor0.B);
+                        wpfPlot.Plot.Style(figureBackground: bgColor0,
+                                            dataBackground: bgColor0,
+                                            grid: bdColor1,
+                                            tick: fgColor1,
+                                            axisLabel: fgColor0,
+                                            titleLabel: fgColor0);                    
+                        wpfPlot.Refresh();
+                    }
                 }
-            }
 
             int count = VisualTreeHelper.GetChildrenCount(obj);
             for (int i = 0; i < count; i++)
@@ -1481,6 +1481,11 @@ namespace StockTickerExtension
                         validPriceIndices.Add(i);
                     }
                 }
+                if (validPriceIndices.Count == 0)
+                {
+                    return;
+                }
+
                 WpfPlotChart2.Plot.AddScatter(validPriceIndices.ToArray(), difList.ToArray(), color: _isBlackTheme ? System.Drawing.Color.White : System.Drawing.Color.Black, lineWidth: 1.8f, markerSize: 0.0f);
                 WpfPlotChart2.Plot.AddScatter(validPriceIndices.ToArray(), deaList.ToArray(), color: System.Drawing.Color.FromArgb(255, 127, 14), lineWidth: 1.8f, markerSize: 0.0f);
 

@@ -575,7 +575,7 @@ namespace StockTickerExtension
                     beginStr = currentDate.AddYears(-10).ToString("yyyyMMdd");
                     break;
                 case PeriodType.Minute1:
-                    beginStr = currentDate.AddDays(-1).ToString("yyyyMMdd");
+                    beginStr = currentDate.AddDays(-3).ToString("yyyyMMdd");
                     break;
                 case PeriodType.Minute5:
                     beginStr = currentDate.AddDays(-5).ToString("yyyyMMdd");
