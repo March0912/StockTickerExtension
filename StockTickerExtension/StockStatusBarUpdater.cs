@@ -35,19 +35,26 @@ namespace StockTickerExtension
             if (changePercent < 0)
             {
                 arrow = "↘️";
+                if (changePercent <= -19.95)
+                {
+                    arrow = "＼＿＿＿＿＿";
+                }
                 _color = 0x0000FF00;
             }
             else if (changePercent > 0)
             {
                 arrow = "↗️";
+                if(changePercent >= 19.95)
+                {
+                    arrow = "／￣￣￣￣￣";
+                }
                 _color = 0x000000FF;
             }
             else
             {
-                arrow = "";
+                arrow = "-----";
                 _color = 0x00FFFFFF;
             }
-
             _text = $"{code}: Price:{price:F2} | Change:{changePercent:F2}% | Profit:{positionProfit:F2} | Today:{todayProfit:F2} {arrow}";
         }
 

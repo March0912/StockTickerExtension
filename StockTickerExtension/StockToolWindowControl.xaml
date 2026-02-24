@@ -59,7 +59,8 @@
                 <Button x:Name="StopBtn" Content="Stop" Margin="6,0" Width="80" Cursor="Hand"/>
                 <Button x:Name="AddBtn" Content="+" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
                 <Button x:Name="RemoveBtn" Content="-" Margin="3,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
-                <CheckBox x:Name="AutoStopCheckBox" Content="Stop when closed" IsChecked="False" Margin="10,0" VerticalAlignment="Center"/>
+                <Button x:Name="MoveUpBtn" Content="⇈" Margin="6,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
+                <Button x:Name="MoveDownBtn" Content="⇊" Margin="3,0" Width="24" Height="24" VerticalAlignment="Center" Cursor="Hand" />
                 <ComboBox x:Name="PeriodComboBox" Width="100" SelectedIndex="0" Margin="6,0"/>
                 <DatePicker x:Name="DatePickerControl" Width="110" Margin="6,0" IsEnabled="False"
                             SelectedDate="{x:Static sys:DateTime.Today}"
