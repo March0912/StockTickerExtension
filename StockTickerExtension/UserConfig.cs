@@ -10,7 +10,6 @@ namespace StockTickerExtension
         public string CurrentStock { get; set; }
         public int CurrentShares { get; set; } = 0;         // 上次的持仓数量
         public float CurrentCostPrices { get; set; } = 0.0f;         // 上次的持仓成本
-        public bool AutoStopOnClose { get; set; } = false;       // 是否关闭时自动停止监控
         public bool MA5Checked { get; set; } = true;
         public bool MA10Checked { get; set; } = true;
         public bool MA20Checked { get; set; } = true;

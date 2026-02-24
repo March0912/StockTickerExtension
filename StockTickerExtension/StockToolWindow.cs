@@ -75,17 +75,9 @@ namespace StockTickerExtension
                 if(tb == null)
                     return VSConstants.S_OK;
 
-                if(tb.IsAutoStopWhenClosed())
+                if (tb.IsMonitoring())
                 {
-                    _statusUpdater.ClearStatusInfo();
-                    _statusUpdater.Stop();
-                }
-                else
-                {
-                    if (tb.IsMonitoring())
-                    {
-                        _statusUpdater.Start();
-                    }
+                    _statusUpdater.Start();
                 }
                 tb.SaveConfig();
             }
