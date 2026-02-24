@@ -71,6 +71,7 @@ namespace StockTickerExtension
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            return;
             StopMonitoring();
             _ownerPane.ClearStatusInfo();
         }
@@ -376,13 +377,13 @@ namespace StockTickerExtension
             {
                 CodeTextBox.Items.Add(code);
             }
-            CodeTextBox.Text = _configManager.Config.CurrentStock;
+            CodeTextBox.Text = _configManager.Config.CurrentStock ?? string.Empty;
             StockMarket sm = StockMarket.StockA;
-            if (CodeTextBox.Text.EndsWith(StockMarket.StockHK.ToString()))
+            if (CodeTextBox.Text.EndsWith(StockMarket.StockHK.ToString(), StringComparison.Ordinal))
             {
                 sm = StockMarket.StockHK;
             }
-            else if (CodeTextBox.Text.EndsWith(StockMarket.StockUS.ToString()))
+            else if (CodeTextBox.Text.EndsWith(StockMarket.StockUS.ToString(), StringComparison.Ordinal))
             {
                 sm = StockMarket.StockUS;
             }
