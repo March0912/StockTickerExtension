@@ -5,17 +5,24 @@ using System.IO;
 
 namespace StockTickerExtension
 {
+    public class CostData
+    {
+        public string Stock { get; set; }
+        public int Shares { get; set; } = 0;
+        public float CostPrice { get; set; } = 0.0f;
+    };
+
     public class UserConfig
     {
+        
         public string CurrentStock { get; set; }
-        public int CurrentShares { get; set; } = 0;         // 上次的持仓数量
-        public float CurrentCostPrices { get; set; } = 0.0f;         // 上次的持仓成本
         public bool MA5Checked { get; set; } = true;
         public bool MA10Checked { get; set; } = true;
         public bool MA20Checked { get; set; } = true;
         public bool MA30Checked { get; set; } = true;
         public bool MA60Checked { get; set; } = true;
         public List<string> WatchStockList { get; set; } = new List<string>();
+        public List<CostData> CostList { get; set; } = new List<CostData>();
     }
 
     public class ConfigManager
