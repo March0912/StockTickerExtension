@@ -46,6 +46,8 @@ namespace StockTickerExtension
         private bool _monitorOnce = false;
         private bool _isBlackTheme = false;
         private bool _isEditingCodeText = false;
+        private bool _isShareBoxEditing = false;
+        private bool _isCostBoxEditing = false;
         private bool _refreshNow = false;
 
         private DateTime _currentDate;
@@ -344,6 +346,7 @@ namespace StockTickerExtension
                     _configManager.Config.CostList.Add(costItem);
                 }                
             }
+            _isShareBoxEditing = false;
         }
         private void SharesBox_KeyUp(object sender, KeyEventArgs e)
         {
@@ -452,6 +455,7 @@ namespace StockTickerExtension
                     }
                 }
             }
+            _isCostBoxEditing = false;
         }
 
         private void Init()
@@ -479,11 +483,13 @@ namespace StockTickerExtension
 
             SharesBox.PreviewTextInput += SharesBox_PreviewInput;            
             SharesBox.KeyUp += SharesBox_KeyUp;
-            SharesBox.LostFocus += SharesBox_LostFocus;
+            SharesBox.GotFocus += (s, e) => { _isShareBoxEditing = true; };
+            SharesBox.LostFocus += SharesBox_LostFocus;            
             DataObject.AddPastingHandler(SharesBox, SharesBox_Paste);
 
             CostBox.PreviewTextInput += CostBox_PreviewInput;
-            DataObject.AddPastingHandler(CostBox, CostBox_Paste); 
+            DataObject.AddPastingHandler(CostBox, CostBox_Paste);
+            CostBox.GotFocus += (s, e) => { _isCostBoxEditing = true; };
             CostBox.LostFocus += CostBox_LostFocus;
             CostBox.KeyUp += CostBox_KeyUp;
 
@@ -1323,12 +1329,12 @@ namespace StockTickerExtension
                 try
                 {
                     var txt = bgts._stockList[bgts._curIndex].ToString();
-                    txt = txt.Substring(0, txt.IndexOf(' '));
-                    if (txt == _currentSnapshot?.Code)
-                    {
-                        continue;
-                    }
-                    var info = StockInfoFetcher.FetchStockInfoAsync(txt, _stockType);
+                    var code = txt.Substring(0, txt.IndexOf(' '));
+                    //if (code == _currentSnapshot?.Code)
+                    //{
+                    //    continue;
+                    //}
+                    var info = StockInfoFetcher.FetchStockInfoAsync(code, _stockType);
                     if (info != null && info.Result != null)
                     {
                         var sign = info.Result.Change >= 0 ? "↑" : "↓";
@@ -1339,6 +1345,11 @@ namespace StockTickerExtension
                             OtherStocksInfo.Foreground = color;
                             OtherStocksInfo.Text = $"{info.Result.Name} {info.Result.Price:F2} " +
                                                    $"Open: {info.Result.Open:F2} High: {info.Result.High:F2} Low: {info.Result.Low:F2} {info.Result.Change:F2}% {sign}";
+                            var costData = _configManager.Config.CostList.Find(x => x.Stock == code);
+                            if( costData != null)
+                            {
+                                costData.CostTL = ((float)info.Result.Price - costData.CostPrice) * costData.Shares;
+                            }
                         }));
                     }
                     for (int i = 0; i < 5 * 10; i++)
@@ -2176,19 +2187,26 @@ namespace StockTickerExtension
 
         private void UpdateProfitDisplay()
         {
-            if (!double.TryParse(SharesBox.Text, out double shares)) return;
-            if (!double.TryParse(CostBox.Text, out double cost)) return;
-            if (!double.TryParse(ChangePercentText.Text.TrimEnd('%'), out double change)) return;
+            if (!float.TryParse(SharesBox.Text, out float shares)) return;
+            if (!float.TryParse(CostBox.Text, out float cost)) return;
+            if (!float.TryParse(ChangePercentText.Text.TrimEnd('%'), out float change)) return;
 
-            double currentPrice = double.Parse(CurrentPriceText.Text);
-            double positionProfit = (currentPrice - cost) * shares;
-            double todayProfit = currentPrice * change * shares / 100;
+            float currentPrice = float.Parse(CurrentPriceText.Text);
+            float positionProfit = (currentPrice - cost) * (float)shares;
+            float todayProfit = (float)(currentPrice * change * shares) / (float)100.0;
 
             PositionProfitText.Text = $"Total: {positionProfit:F2}";
             PositionProfitText.Foreground = positionProfit > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
-
             TodayProfitText.Text = $"Today: {todayProfit:F2}";
             TodayProfitText.Foreground = todayProfit > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
+
+            float totalPL = 0;
+            foreach(var stockCost in _configManager.Config.CostList)
+            {
+                totalPL += stockCost.CostTL;
+            }
+            TotalPLText.Text = $"Total P/L: {totalPL:F2}";
+            TotalPLText.Foreground = totalPL > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
 
             UpdateVSStatus(CodeTextBox.Text, currentPrice, change, positionProfit, todayProfit);
         }
@@ -2586,8 +2604,14 @@ namespace StockTickerExtension
             var item = _configManager.Config.CostList.Find(x => x.Stock == stockCode);
             if (item != null)
             {
-                SharesBox.Text = item.Shares.ToString();
-                CostBox.Text = item.CostPrice.ToString();
+                if (!_isShareBoxEditing)
+                {
+                    SharesBox.Text = item.Shares.ToString();
+                }
+                if (!_isCostBoxEditing)
+                {
+                    CostBox.Text = item.CostPrice.ToString();
+                }
             }
             else
             {

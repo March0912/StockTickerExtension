@@ -10,6 +10,7 @@ namespace StockTickerExtension
         public string Stock { get; set; }
         public int Shares { get; set; } = 0;
         public float CostPrice { get; set; } = 0.0f;
+        public float CostTL { get; set; } = 0.0f;
     };
 
     public class UserConfig

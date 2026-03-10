@@ -65,7 +65,8 @@
                 <DatePicker x:Name="DatePickerControl" Width="110" Margin="6,0" IsEnabled="False"
                             SelectedDate="{x:Static sys:DateTime.Today}"
                             DisplayDateEnd="{x:Static sys:DateTime.Today}"
-                            VerticalAlignment="Center"/>                
+                            VerticalAlignment="Center"/>
+                <TextBlock x:Name="TotalPLText" Text="Total P/L: --" Margin="6,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </StackPanel>
 
             <!-- 第二行：持仓信息 -->
