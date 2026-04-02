@@ -177,8 +177,19 @@ namespace StockTickerExtension
                     bool isOnlyDigit = text.All(char.IsDigit);
                     if (isOnlyDigit)
                     {
-                        UpdateStockType(StockMarket.StockA);
-                        StartMonitoring();
+                        if(text == "000001")
+                        {
+                            List<StockInfo> results = new List<StockInfo>();
+                            results.Add(new StockInfo() { Code = "000001", Name = "上证指数", StockType = StockMarket.StockA });
+                            results.Add(new StockInfo() { Code = "000001", Name = "平安银行", StockType = StockMarket.StockA });
+                            UpdateStatus($"Search result: total {results.Count} stocks!", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
+                            ShowFuzzyDialog(results);
+                        }
+                        else
+                        {
+                            UpdateStockType(StockMarket.StockA);
+                            StartMonitoring();
+                        }
                     }
                     else
                     {
@@ -892,7 +903,7 @@ namespace StockTickerExtension
             _currentSnapshot = null;
             _refreshNow = true;
 
-            var code = codeName.Split(' ')[0];
+            var code = ("000001 上证指数" == codeName) ? codeName : codeName.Split(' ')[0];
 
             if (_cts == null)
             {
@@ -969,6 +980,10 @@ namespace StockTickerExtension
                     if (snap != null)
                     {
                         snap.Code = cts._code;
+                        if (cts._code == "000001 上证指数")
+                        {
+                            snap.Code = "000001";
+                        }                        
                         while (_queue.Count > 0) _queue.TryDequeue(out _);
                         _queue.Enqueue(snap);
                     }
