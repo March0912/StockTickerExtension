@@ -203,15 +203,23 @@ namespace StockTickerExtension
             {
                 case StockMarket.StockA:
                     {
-                        char first = code[0];
-                        if (first == '0' || first == '2' || first == '3')
+                        if ("000001 上证指数" == code)
                         {
-                            secId = "0." + code;
-                        }
-                        else if (first == '6' || first == '9')
-                        {
+                            code = code.Split(' ')[0];
                             secId = "1." + code;
                         }
+                        else 
+                        {
+                            char first = code[0];
+                            if (first == '0' || first == '2' || first == '3')
+                            {
+                                secId = "0." + code;
+                            }
+                            else if (first == '6' || first == '9')
+                            {
+                                secId = "1." + code;
+                            }
+                        }                        
                         break;
                     }
                 case StockMarket.StockHK:
