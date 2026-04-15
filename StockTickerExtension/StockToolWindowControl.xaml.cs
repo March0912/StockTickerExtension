@@ -1065,6 +1065,7 @@ namespace StockTickerExtension
             var lows = new double[count];
             var openPrice = new double[count];
             var changePercents = new double[count];
+            var amounts = new double[count];
             var kLineDates = new DateTime[count];
 
             for (int i = 0; i < count; i++)
@@ -1076,6 +1077,7 @@ namespace StockTickerExtension
                 double high = double.Parse(parts[3]);
                 double low = double.Parse(parts[4]);
                 double vol = double.Parse(parts[5]);
+                double amount = double.Parse(parts[6]);
 
                 kLineDates[i] = DateTime.Parse(date);
                 openPrice[i] = open;
@@ -1084,6 +1086,7 @@ namespace StockTickerExtension
                 lows[i] = low;
                 avgPrices[i] = (open + close + high + low) / 4.0;
                 vols[i] = vol;
+                amounts[i] = amount;
             }
 
             for (int i = 0; i < count; i++)
@@ -1149,6 +1152,7 @@ namespace StockTickerExtension
                 KLineDates = kLineDates,
                 CurrentPrice = lastPrice,
                 ChangePercents = changePercents,
+                Amounts = amounts,
                 MA5 = ma5full,
                 MA10 = ma10full,
                 MA20 = ma20full,
@@ -1190,8 +1194,9 @@ namespace StockTickerExtension
                 var vols = new double[_tradingMinutes.Count];
                 var buy = new double[_tradingMinutes.Count];
                 var sell = new double[_tradingMinutes.Count];
+                var amounts = new double[_tradingMinutes.Count];
 
-                var parsedRows = new List<(string time, double price, double vol, double avg)>();
+                var parsedRows = new List<(string time, double price, double vol, double avg, double amount)>();
                 foreach (var line in trends)
                 {
                     var parts = line.Split(',');
@@ -1200,7 +1205,9 @@ namespace StockTickerExtension
                     if (!double.TryParse(parts[2], out double price)) price = double.NaN;
                     if (!double.TryParse(parts[5], out double vol)) vol = double.NaN;
                     if (!double.TryParse(parts[7], out double avg)) avg = double.NaN;
-                    parsedRows.Add((time, price, vol, avg));
+                    if (!double.TryParse(parts[6], out double amount)) amount = double.NaN;
+
+                    parsedRows.Add((time, price, vol, avg, amount));
                 }
 
                 for (int i = 0; i < parsedRows.Count; i++)
@@ -1209,12 +1216,13 @@ namespace StockTickerExtension
                     int idx = _tradingMinutes.IndexOf(r.time);
                     if (idx < 0 || idx >= _tradingMinutes.Count)
                         continue;
-                    if (r.price == 0 || r.avg == 0 || r.vol == 0)
+                    if (r.price == 0 || r.avg == 0)
                         continue;
 
                     prices[idx] = r.price;
                     avgPrices[idx] = r.avg;
                     vols[idx] = r.vol;
+                    amounts[idx] = r.amount;
                 }
 
                 for (int i = 0; i < parsedRows.Count; i++)
@@ -1271,7 +1279,8 @@ namespace StockTickerExtension
                     Volumes = vols,
                     BuyVolumes = buy,
                     SellVolumes = sell,
-                    ChangePercents = changePercents
+                    ChangePercents = changePercents,
+                    Amounts = amounts
                 };
             }
         }
@@ -2324,6 +2333,14 @@ namespace StockTickerExtension
                     OpenPriceText.Text = prices?.First().ToString("F2") ?? "";
                     HighestPriceText.Text = prices?.Max().ToString("F2") ?? "";
                     LowestPriceText.Text = prices?.Min().ToString("F2") ?? "";
+
+                    double totalAmount = snap.Amounts?.Sum() ?? 0;
+                    AmountsText.Text = Tool.FormatAmount(totalAmount);
+
+                    //平均成交价格
+                    double totalVolumes = snap.Volumes?.Sum() ?? 0;
+                    double avgTradePrice = totalAmount / (totalVolumes * 100);
+                    AvgTradePriceText.Text = $"{avgTradePrice:F2}";
                 }
             }
             else
@@ -2331,6 +2348,14 @@ namespace StockTickerExtension
                 OpenPriceText.Text = snap.OpenPrice?.Last().ToString("F2") ?? "";
                 HighestPriceText.Text = snap.HighPrices?.Last().ToString("F2") ?? "";
                 LowestPriceText.Text = snap.LowPrices?.Last().ToString("F2") ?? "";
+
+                double totalAmount = snap.Amounts?.Last() ?? 0;
+                AmountsText.Text = Tool.FormatAmount(totalAmount);
+
+                //平均成交价格
+                double totalVolumes = snap.Volumes?.Last() ?? 0;
+                double avgTradePrice = totalAmount / (totalVolumes * 100);
+                AvgTradePriceText.Text = $"{avgTradePrice:F2}";
             }            
         }
 
@@ -2450,6 +2475,8 @@ namespace StockTickerExtension
                     var close = _currentSnapshot.Prices[index];
                     var high = _currentSnapshot.HighPrices[index];
                     var low = _currentSnapshot.LowPrices[index];
+                    var amount = _currentSnapshot.Amounts[index];
+                    var vols = _currentSnapshot.Volumes[index];
 
                     labelText = $"Open: {open:F2} \r\n" +
                                 $"Close: {close:F2} \r\n" +
@@ -2462,6 +2489,12 @@ namespace StockTickerExtension
                     HighestPriceText.Text = high.ToString("F2");
                     LowestPriceText.Text = low.ToString("F2");
                     ChangePercentText.Text = $"{val:F2}%";
+                    AmountsText.Text = Tool.FormatAmount(amount);
+
+                    //平均成交价格
+                    double avgTradePrice = amount / (vols * 100);
+                    AvgTradePriceText.Text = $"{avgTradePrice:F2}";
+
                     var foreground = val > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
                     ChangePercentText.Foreground = foreground;
                 }
@@ -2523,6 +2556,14 @@ namespace StockTickerExtension
                         OpenPriceText.Text = prices?.First().ToString() ?? "";
                         HighestPriceText.Text = prices?.Max().ToString() ?? "";
                         LowestPriceText.Text = prices?.Min().ToString() ?? "";
+
+                        double totalAmount = _currentSnapshot.Amounts?.Sum() ?? 0;
+                        AmountsText.Text = Tool.FormatAmount(totalAmount);
+
+                        //平均成交价格
+                        double totalVolumes = _currentSnapshot.Volumes?.Sum() ?? 0;
+                        double avgTradePrice = totalAmount / (totalVolumes * 100);
+                        AvgTradePriceText.Text = $"{avgTradePrice:F2}";
                     }
 
                     var val = _currentSnapshot.ChangePercents?.Last() ?? 0;
@@ -2540,6 +2581,14 @@ namespace StockTickerExtension
                     OpenPriceText.Text = open.ToString();
                     HighestPriceText.Text = high.ToString();
                     LowestPriceText.Text = low.ToString();
+                                        
+                    double totalAmount = _currentSnapshot.Amounts?.Last() ?? 0;
+                    AmountsText.Text = Tool.FormatAmount(totalAmount);
+
+                    //平均成交价格
+                    double totalVolumes = _currentSnapshot.Volumes?.LastOrDefault() ?? 0;
+                    double avgTradePrice = totalAmount / (totalVolumes * 100);
+                    AvgTradePriceText.Text = $"{avgTradePrice:F2}";
 
                     ChangePercentText.Text = $"{val:F2}%";
                     var foreground = val > 0 ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.Green;
