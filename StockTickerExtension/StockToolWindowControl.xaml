@@ -81,9 +81,13 @@
                 <TextBlock x:Name="HighestPriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="LowestPriceLabel" Text="Low:" VerticalAlignment="Center" Margin="6,0" />
                 <TextBlock x:Name="LowestPriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                <TextBlock x:Name="NumberSharesBox" Text="Number of Shares:" VerticalAlignment="Center" Margin="6,0" />
+                <TextBlock x:Name="AvgTradePriceLabel" Text="Avg:" VerticalAlignment="Center" Margin="6,0" />
+                <TextBlock x:Name="AvgTradePriceText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="AmountsLabel" Text="Amounts:" VerticalAlignment="Center" Margin="6,0" />
+                <TextBlock x:Name="AmountsText" Text="--" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="NumberSharesBox" Text="Qty:" VerticalAlignment="Center" Margin="10,0" />
                 <TextBox x:Name="SharesBox" Width="80" Text="" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                <TextBlock Text="Cost Price:" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="6,0"/>
+                <TextBlock Text="Avg. Price:" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="6,0"/>
                 <TextBox x:Name="CostBox" Width="60" Text="" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="6,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="TodayProfitText" Text="Today: --" Margin="6,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
