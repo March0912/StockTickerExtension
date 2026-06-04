@@ -89,20 +89,20 @@ namespace StockTickerExtension
                 DatePickerControl.IsEnabled = false;
                 DatePickerControl.SelectedDate = DateTime.Today;
 
-                MA5.IsEnabled = false;
-                MA5.Content = "MA5: --";
+                //MA5.IsEnabled = false;
+                //MA5.Content = "MA5: --";
 
-                MA10.IsEnabled = false;
-                MA10.Content = "MA10: --";
+                //MA10.IsEnabled = false;
+                //MA10.Content = "MA10: --";
 
-                MA20.IsEnabled = false;
-                MA20.Content = "MA20: --";
+                //MA20.IsEnabled = false;
+                //MA20.Content = "MA20: --";
 
-                MA30.IsEnabled = false;
-                MA30.Content = "MA30: --";
+                //MA30.IsEnabled = false;
+                //MA30.Content = "MA30: --";
 
-                MA60.IsEnabled = false;
-                MA60.Content = "MA60: --";
+                //MA60.IsEnabled = false;
+                //MA60.Content = "MA60: --";
 
                 WpfPlotChart1.Plot.Clear();
                 WpfPlotChart1.Height = 240;
@@ -271,10 +271,6 @@ namespace StockTickerExtension
                 if (!CodeTextBox.Items.Contains(text))
                 {
                     CodeTextBox.Items.Add(text);
-                    if (_backgroundWatchListCts != null)
-                    {
-                        _backgroundWatchListCts._stockList.Add(text);
-                    }
                 }
             }
         }
@@ -285,10 +281,6 @@ namespace StockTickerExtension
             if (!string.IsNullOrEmpty(text))
             {
                 CodeTextBox.Items.Remove(text);
-                if (_backgroundWatchListCts != null)
-                {
-                    _backgroundWatchListCts._stockList.Remove(text);
-                }
             }
         }
         private void MoveUpBtn_Click(object sender, System.Windows.RoutedEventArgs e)
@@ -301,14 +293,6 @@ namespace StockTickerExtension
             CodeTextBox.Items.RemoveAt(currentIndex);
             CodeTextBox.Items.Insert(currentIndex - 1, item);
             CodeTextBox.SelectedIndex = currentIndex - 1;
-
-            if (_backgroundWatchListCts != null)
-            {
-                var text = CodeTextBox.Text?.Trim();
-                currentIndex = _backgroundWatchListCts._stockList.IndexOf(text);
-                _backgroundWatchListCts._stockList.Remove(text);
-                _backgroundWatchListCts._stockList.Insert(currentIndex - 1, text);
-            }
         }
         private void MoveDownBtn_Click(object sender, System.Windows.RoutedEventArgs e)
         {
@@ -319,14 +303,6 @@ namespace StockTickerExtension
             CodeTextBox.Items.RemoveAt(currentIndex);
             CodeTextBox.Items.Insert(currentIndex + 1, item);
             CodeTextBox.SelectedIndex = currentIndex + 1;
-
-            if (_backgroundWatchListCts != null)
-            {
-                var text = CodeTextBox.Text?.Trim();
-                currentIndex = _backgroundWatchListCts._stockList.IndexOf(text);
-                _backgroundWatchListCts._stockList.Remove(text);
-                _backgroundWatchListCts._stockList.Insert(currentIndex + 1, text);
-            }
         }
 
         private void SharesBox_PreviewInput(object sender, TextCompositionEventArgs e)
@@ -1353,11 +1329,8 @@ namespace StockTickerExtension
                 try
                 {
                     var txt = bgts._stockList[bgts._curIndex].ToString();
-                    var code = txt.Substring(0, txt.IndexOf(' '));
-                    //if (code == _currentSnapshot?.Code)
-                    //{
-                    //    continue;
-                    //}
+                    var code = ("000001 上证指数" == txt) ? txt : txt.Split(' ')[0];
+
                     var info = StockInfoFetcher.FetchStockInfoAsync(code, _stockType);
                     if (info != null && info.Result != null)
                     {
@@ -1412,12 +1385,16 @@ namespace StockTickerExtension
             if (_backgroundWatchListCts == null)
             {
                 _backgroundWatchListCts = new BackGroundTockenSource();
-                _backgroundWatchListCts._stockList = CodeTextBox.Items.Cast<string>().ToList();
+                _backgroundWatchListCts._stockList.Add("000001 上证指数");
+                _backgroundWatchListCts._stockList.Add("399006 创业板指");   // = CodeTextBox.Items.Cast<string>().ToList();
+
                 _ = Task.Run(() => BackgroundWatchRun_Async(_backgroundWatchListCts));
             }
             else
             {
-                _backgroundWatchListCts._stockList = CodeTextBox.Items.Cast<string>().ToList();
+                _backgroundWatchListCts._stockList.Clear();
+                _backgroundWatchListCts._stockList.Add("000001 上证指数");
+                _backgroundWatchListCts._stockList.Add("399006 创业板指");   // = CodeTextBox.Items.Cast<string>().ToList();
             }
         }
 
@@ -1594,6 +1571,11 @@ namespace StockTickerExtension
             {
                 if (!_monitoring || snap == null || snap.Prices == null || snap.Prices.Length == 0 || snap.KLineDates == null || snap.KLineDates.Length == 0)
                     return;
+
+                if (_crosshair.IsVisible)
+                {
+                    return;
+                }
 
                 var crosshair = _crosshair;
 

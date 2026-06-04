@@ -771,6 +771,11 @@ namespace StockTickerExtension
     {
         public List<string> _stockList;
         public int _curIndex = -1;
+
+        public BackGroundTockenSource()
+        {
+            _stockList = new List<string>();
+        }
     }
 
 }
