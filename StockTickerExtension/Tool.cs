@@ -318,6 +318,39 @@ namespace StockTickerExtension
             }
             return kType;
         }
+        static public string GetProfileCode(StockMarket stockType, string code)
+        {
+            string secId = code;
+            switch (stockType)
+            {
+                case StockMarket.StockA:
+                    {
+                        char first = code[0];
+                        if (first == '0' || first == '2' || first == '3')
+                        {
+                            secId = "SZ" + code;
+                        }
+                        else if (first == '6' || first == '9')
+                        {
+                            secId = "SH" + code;
+                        }
+                        break;
+                    }
+                case StockMarket.StockHK:
+                    {
+                        secId = code;
+                        break;
+                    }
+                case StockMarket.StockUS:
+                    {
+                        break;
+                    }
+                default:
+                    secId = code;
+                    break;
+            }
+            return secId;
+        }
         static public List<string> BuildTradingMinutes(StockMarket stockType, DateTime date)
         {
             var list = new List<string>();
@@ -768,6 +801,22 @@ namespace StockTickerExtension
         public BackGroundTockenSource()
         {
             _stockList = new List<string>();
+        }
+    }
+
+    public class ProfileInfo
+    {
+        public string Code { get; set; }
+        public string Name { get; set; }
+
+        public List<string> Industry { get; set; }
+
+        public List<(string, string, string)> Concept { get; set; }
+
+        public ProfileInfo()
+        {
+            Industry = new List<string>();
+            Concept = new List<(string, string, string)>();
         }
     }
 
