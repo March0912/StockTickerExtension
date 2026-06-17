@@ -67,6 +67,8 @@
                             DisplayDateEnd="{x:Static sys:DateTime.Today}"
                             VerticalAlignment="Center"/>
                 <TextBlock x:Name="TotalPLText" Text="Total P/L: --" Margin="6,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Button x:Name="ProfileBtn" Content="Profile" Margin="3,0" Width="60" Height="24" VerticalAlignment="Center" Cursor="Hand" />
+                <TextBlock x:Name="ProfileText" Text=" " Margin="6,0" Width="250" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </StackPanel>
 
             <!-- 第二行：持仓信息 -->
