@@ -28,6 +28,19 @@ namespace StockTickerExtension
                     DialogResult = false;
                     this.Close();
                 }
+				else if (e.Key == Key.Up || e.Key == Key.Down)
+                {
+                    // 当按下上下键的时候，自动滚动到选中的项
+                    var idx = ResultList.SelectedIndex;
+                    if (idx >= 0 && idx < ResultList.Items.Count)
+                    {
+                        ResultList.ScrollIntoView(ResultList.Items[idx]);
+                    }
+                }
+				else if(e.Key == Key.Enter)
+				{
+                    ListBox_MouseDoubleClickEvent(null, null);
+				}
             };
 			this.Loaded += FuzzySearchDialog_Loaded;
 			this.Closed += FuzzySearchDialog_Closed;
@@ -35,8 +48,8 @@ namespace StockTickerExtension
 			// 备用：当 Window.Deactivated 触发时也关闭（有时可靠）
 			this.Deactivated += (s, e) => SafeClose();
 
-			// 也监听键盘 ESC 关闭
-			this.PreviewKeyDown += (s, e) =>
+            // 也监听键盘 ESC 关闭
+            this.PreviewKeyDown += (s, e) =>
 			{
 				if (e.Key == Key.Escape)
 				{
@@ -55,6 +68,7 @@ namespace StockTickerExtension
 			}
 			_list = list;
             InitUIColor();
+            ResultList.Focus();
         }
 
         private async void ListBox_MouseDoubleClickEvent(object sender, MouseButtonEventArgs e)
@@ -71,6 +85,7 @@ namespace StockTickerExtension
 				SafeClose();
 			}
         }
+
         private void InitUIColor()
         {
             this.Loaded += (s, e) =>
@@ -99,6 +114,7 @@ namespace StockTickerExtension
 			ResultList.Foreground = fgBrush;
             ResultList.BorderBrush = bdBrush;
 		}
+
 		protected override void OnDeactivated(EventArgs e)
 		{
 			base.OnDeactivated(e);

@@ -219,7 +219,16 @@ namespace StockTickerExtension
                         if (results.Count > 0)
                         {
                             UpdateStatus($"Search result: total {results.Count} stocks!", _isBlackTheme ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black);
-                            ShowFuzzyDialog(results);
+                            if(results.Count == 1)
+                            {
+                                UpdateStockType(results[0].StockType);
+                                var str = results[0].Code + " "+ results[0].Name;
+                                StartMonitoring(str);
+                            }
+                            else
+                            {
+                                ShowFuzzyDialog(results);
+                            }                            
                         }
                         else
                         {
