@@ -239,7 +239,7 @@ namespace StockTickerExtension
 
             if (stockType == StockMarket.StockA)
             {
-                TimeSpan morningStart = new TimeSpan(9, 30, 0);
+                TimeSpan morningStart = new TimeSpan(9, 15, 0);
                 TimeSpan morningEnd = new TimeSpan(11, 30, 0);
                 TimeSpan afternoonStart = new TimeSpan(13, 0, 0);
                 TimeSpan afternoonEnd = new TimeSpan(15, 0, 0);
