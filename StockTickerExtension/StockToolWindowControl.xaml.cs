@@ -7,6 +7,7 @@ using ScottPlot.Plottable;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
 using System.Text.RegularExpressions;
@@ -536,11 +537,12 @@ namespace StockTickerExtension
         {
             if(CodeTextBox.Text.Length > 0)
             {
-                var code = CodeTextBox.Text.Split(' ')[0];
-                var Name = CodeTextBox.Text.Split(' ')[1];
+                var t = CodeTextBox.Text;
+                var code = t.Split(' ')[0];
+                var Name = t.Length == 2 ? t.Split(' ')[1] : "";
 
                 ProfileInfo profileInfo = new ProfileInfo();
-                if (_profileMaps.ContainsKey(Name))
+                if (Name.Length > 0 && _profileMaps.ContainsKey(Name))
                 {
                     profileInfo = _profileMaps[Name];
                 }
@@ -2869,6 +2871,10 @@ namespace StockTickerExtension
                     {
                         var borardName = item["BOARD_NAME"]?.ToString();
                         profileInfo.Industry.Add(borardName);
+                        if(string.IsNullOrEmpty(profileInfo.Name))
+                        {
+                            profileInfo.Name = item["SECURITY_NAME_ABBR"]?.ToString();
+                        }
                     }
                 }
                 results = jObj["hxtc"];        //核心题材
