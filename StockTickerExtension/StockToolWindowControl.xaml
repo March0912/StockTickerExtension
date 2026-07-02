@@ -92,6 +92,7 @@
                 <TextBox x:Name="CostBox" Width="60" Text="" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="PositionProfitText" Text="Total: --" Margin="6,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <TextBlock x:Name="TodayProfitText" Text="Today: --" Margin="6,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="JoinDate" Text="JoinDate:--" VerticalAlignment="Center" Margin="10,0" />
                 <TextBlock x:Name="StatusText" Text="Stoped" VerticalAlignment="Center" Margin="6,0" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="3" Grid.Row="2" HorizontalAlignment="Left">
