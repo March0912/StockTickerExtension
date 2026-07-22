@@ -10,6 +10,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -594,11 +595,12 @@ namespace StockTickerExtension
                 else 
                 {
                     profileInfo = await SearchStockProfile_Async(code, Name);
-                    _profileMaps[Name] = profileInfo;
                 }
                 if (profileInfo != null)
                 {
-                    string profile = profileInfo.Name + " : ";
+                    _profileMaps[Name] = profileInfo;
+
+                    string profile = "行业板块 : ";
                     string profileDetail = "";
                     for(int i=0; i<profileInfo.Industry.Count; i++)
                     {
@@ -606,18 +608,56 @@ namespace StockTickerExtension
                         {
                             profile += profileInfo.Industry[i] + " ,";
                         }
-                        profileDetail += profileInfo.Industry[i] + "  ";
+                        profileDetail += profileInfo.Industry[i] + "；";
                     }
                     profile += "...";
                     profileDetail += "\r\n";
                     for (int i = 0; i < profileInfo.Concept.Count; i++)
                     {
-                        string str = $"{profileInfo.Concept[i].Item1} : {profileInfo.Concept[i].Item2}, {profileInfo.Concept[i].Item3}";
+                        string item3Str = profileInfo.Concept[i].Item3;
+                        if (item3Str.Length > 0)
+                        {
+                            var item3List = item3Str.Split(';').ToList();
+                            item3Str = "";
+                            string spaceStr = "              ";
+                            //将list中每3个组成一个字符串后面加一个\r\n，然后一起组成一个字符串赋值给items3Str
+                            for (int j = 0; j < item3List.Count; j += 3)
+                            {
+                                if (j + 3 <= item3List.Count)
+                                {
+                                    if(j == 0)
+                                    {
+                                        item3Str += string.Join(" ", item3List.GetRange(j, 3)) + "\r\n";
+                                    }
+                                    else
+                                    {
+                                        item3Str += spaceStr + string.Join(" ", item3List.GetRange(j, 3)) + "\r\n";
+                                    }
+                                }
+                                else
+                                {
+                                    if(item3List.Count == 1)
+                                        item3Str += string.Join(" ", item3List.GetRange(j, item3List.Count - j)) + "\r\n";
+                                    else
+                                        item3Str += spaceStr + string.Join(" ", item3List.GetRange(j, item3List.Count - j)) + "\r\n";
+                                }
+                            }
+                            item3Str = item3Str.TrimEnd('\r', '\n');
+                        }
+                        string str = $"{profileInfo.Concept[i].Item1} : {item3Str}";
                         profileDetail += str + "\r\n";
                     }
-                    
+                    profileDetail = profileDetail.TrimEnd('\r', '\n');
+
+                    //设置自动换行
+                    ProfileText.TextWrapping = TextWrapping.Wrap;
                     ProfileText.Text = profile;
                     ProfileText.ToolTip = profileDetail;
+                }
+                else
+                {
+                    ProfileText.Text = "";
+                    ProfileText.ToolTip = "";
                 }
             }
         }
@@ -2986,12 +3026,16 @@ namespace StockTickerExtension
             profileInfo.Code = code;
             profileInfo.Name = name;
 
+            if(code == "399006" || name == "上证指数")
+                return null;
+
             var secId = Tool.GetProfileCode(_stockType, code);
             var url = s_profileA_URL + secId;
 
             try
             {
-                HttpClient client = new HttpClient();
+                var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate };
+                HttpClient client = new HttpClient(handler);
                 client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
                 using (var resp = await client.GetAsync(url))
                 {
@@ -3022,6 +3066,7 @@ namespace StockTickerExtension
                             var content = item["MAINPOINT_CONTENT"]?.ToString();
                             var type = item["KEY_CLASSIF"]?.ToString();
                             profileInfo.Concept.Add((type, keyword, content));
+                            break;
                         }
                     }
                 }
@@ -3029,6 +3074,7 @@ namespace StockTickerExtension
             catch (Exception ex)
             {
                 Logger.Error(ex.Message);
+                profileInfo = null;
             }
 
             return profileInfo;
